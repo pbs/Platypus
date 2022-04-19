@@ -386,7 +386,7 @@ export default (function () {
                 });
                 
                 state.musicVolume.subscribe((current) => {
-                    if (current) {
+                    if (!current) {
                         this.triggerOnChildren('mute-music');
                     } else {
                         this.triggerOnChildren('unmute-music');
