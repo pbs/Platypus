@@ -188,8 +188,20 @@ export default createComponentClass(/** @lends platypus.components.Tween.prototy
                 if (tweenDefinition.onStop) {
                     tween.onStop((typeof tweenDefinition.onStop !== 'function') ? trigger.bind(owner, tweenDefinition.onStop) : tweenDefinition.onStop);
                 }
-                if (tweenDefinition.onComplete) {
-                    tween.onComplete((typeof tweenDefinition.onComplete !== 'function') ? trigger.bind(owner, tweenDefinition.onComplete) : tweenDefinition.onComplete);
+                if (tweenDefinition.onComplete || tweenDefinition.yoyo) { // need fix for repeating an event that yoyo's
+                    tween.onComplete(() => {
+                        if (tweenDefinition.yoyo) { // reset tween
+                            tween.to(tweenDefinition.to);
+                            tween.repeat(tweenDefinition.repeat);
+                        }
+                        if (tweenDefinition.onComplete) {
+                            if (typeof tweenDefinition.onComplete !== 'function') {
+                                trigger.call(owner, tweenDefinition.onComplete);
+                            } else {
+                                tweenDefinition.onComplete();
+                            }
+                        }
+                    });
                 }
                 if (tweenDefinition.onRepeat) {
                     tween.onRepeat((typeof tweenDefinition.onRepeat !== 'function') ? trigger.bind(owner, tweenDefinition.onRepeat) : tweenDefinition.onRepeat);
