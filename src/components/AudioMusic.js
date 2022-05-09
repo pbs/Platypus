@@ -11,6 +11,13 @@ import TweenJS from '@tweenjs/tween.js';
 import createComponentClass from '../factory.js';
 
 const
+    formatPath = (path) => {
+        if (path.indexOf('.mp3') === -1) {
+            return `${path}.mp3`;
+        } else {
+            return path;
+        }
+    },
     Tween = TweenJS.Tween,
     tracks = {}; // List of actively-playing tracks.
 
@@ -68,7 +75,7 @@ export default createComponentClass(/** @lends platypus.components.AudioMusic.pr
                     if (fadeOut >= 0) {
                         greenSplice(fadeOuts, fadeOut);
                     } else { // gotta load it because it's not there!
-                        sound = tracks[key] = this.player.play(trackProperties.sound || trackProperties, {
+                        sound = tracks[key] = this.player.play(platypus.assetCache.getFileId(trackProperties.sound || trackProperties), {
                             loop: Infinity,
                             volume: trackProperties.fade ? 0 : (typeof trackProperties.volume === 'number' ? trackProperties.volume : 1),
                             initialVolume: typeof trackProperties.volume === 'number' ? trackProperties.volume : 1
@@ -113,7 +120,7 @@ export default createComponentClass(/** @lends platypus.components.AudioMusic.pr
         if (tracks) {
             for (key in tracks) {
                 if (tracks.hasOwnProperty(key)) {
-                    const item = (tracks[key].sound || tracks[key]) + '.mp3';
+                    const item = formatPath(tracks[key].sound || tracks[key]);
                     if (preload.indexOf(item) === -1) {
                         preload.push(item);
                     }
