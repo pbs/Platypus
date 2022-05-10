@@ -16,7 +16,10 @@ const
         let x = 0;
 
         if (contents) {
-            this.contents = ...contents;
+            this.contents = [];
+            for (x = 0; x < contents.length; x++) {
+                this.contents.push(contents[x]);
+            }
         } else {
             this.contents = [];
         }
