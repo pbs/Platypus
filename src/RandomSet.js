@@ -65,15 +65,14 @@ export default (function () {
             index = this.contents.indexOf(toRemove);
             if (index !== -1) {
                 this.contents.splice(index, 1);
+            
+                indexesIndex = this.availableIndexes.indexOf(index);
+                if (indexesIndex !== -1) {
+                    this.availableIndexes.splice(indexesIndex, 1);
+                }
             }
         } while (index !== -1 && removeAll);
 
-        do {
-            indexesIndex = this.availableIndexes.indexOf(index);
-            if (indexesIndex !== -1) {
-                this.availableIndexes.splice(indexesIndex, 1);
-            }
-        } while (indexesIndex !== -1 && removeAll);
     };
 
     /**
