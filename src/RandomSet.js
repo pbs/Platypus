@@ -67,9 +67,7 @@ export default (function () {
                 this.contents.splice(index, 1);
             
                 indexesIndex = this.availableIndexes.indexOf(index);
-                if (indexesIndex !== -1) {
-                    this.availableIndexes.splice(indexesIndex, 1);
-                }
+                this.availableIndexes.splice(indexesIndex, 1);
             }
         } while (index !== -1 && removeAll);
 
