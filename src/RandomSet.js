@@ -34,7 +34,6 @@ export default (function () {
     proto.refill = function () {
         let x = 0;
         
-        this.availableIndexes = [];
         for (x = 0; x < this.contents.length; x++) {
             this.availableIndexes.push(x);
         }
@@ -59,21 +58,22 @@ export default (function () {
      * @param removeAll {boolean} Remove all instances of the primitive/object.
      */
     proto.remove = function (toRemove, removeAll) {
-        let index = 0;
+        let index = -1,
+            indexesIndex = -1;
 
         do {
             index = this.contents.indexOf(toRemove);
             if (index !== -1) {
-                this.contentRecord.splice(index, 1);
+                this.contents.splice(index, 1);
             }
         } while (index !== -1 && removeAll);
 
         do {
-            index = this.availableIndexes.indexOf(index);
-            if (index !== -1) {
-                this.contents.splice(index, 1);
+            indexesIndex = this.availableIndexes.indexOf(index);
+            if (indexesIndex !== -1) {
+                this.availableIndexes.splice(indexesIndex, 1);
             }
-        } while (index !== -1 && removeAll);
+        } while (indexesIndex !== -1 && removeAll);
     };
 
     /**
