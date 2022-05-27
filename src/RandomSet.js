@@ -68,6 +68,13 @@ export default (function () {
             
                 indexesIndex = this.availableIndexes.indexOf(index);
                 this.availableIndexes.splice(indexesIndex, 1);
+
+                // Now we need to re-index entries above index...
+                for (let i = 0; i < this.availableIndexes; i++) {
+                    if (this.availableIndexes[i] > index) {
+                        this.availableIndexes[i] -= 1;
+                    }
+                }
             }
         } while (index !== -1 && removeAll);
 
