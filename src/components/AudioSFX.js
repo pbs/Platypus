@@ -326,7 +326,7 @@ export default createComponentClass(/** @lends platypus.components.AudioSFX.prot
                 let pan = 0,
                     volume = 1;
 
-                if (distance < autoPan.buffer) {
+                if (distance <= autoPan.buffer) {
                     pan = 0;
                     volume = autoPan.maximum;
                 } else if (distance > autoPan.buffer + range) {
