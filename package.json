@@ -5,11 +5,11 @@
     "license": "MIT",
     "main": "lib/platypus.js",
     "module": "src/index.js",
-    "url": "https://github.com/PBS-KIDS/Platypus",
+    "url": "https://github.com/pbs/Platypus/",
     "logo": "assets/platypus-title.png",
     "repository": {
         "type": "git",
-        "url": "https://github.com/PBS-KIDS/Platypus"
+        "url": "https://github.com/pbs/Platypus/"
     },
     "scripts": {
         "start": "webpack-dev-server --env.dev",

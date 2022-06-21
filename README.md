@@ -1,4 +1,4 @@
-[![Platypus](http://platypus.gopherwoodstudios.com/assets/platypus-title.png)](https://github.com/PBS-KIDS/Platypus)
+[![Platypus](./assets/platypus-title.png)](https://github.com/pbs/Platypus/)
 ========
 
 2D tile based game framework in HTML5
@@ -7,9 +7,9 @@ The Platypus Engine allows rapid development of 2D orthogonal tile based games f
 
 Platypus uses:
 
- * The [Tiled](http://www.mapeditor.org/) map editor for level creation.
- * [SpringRoll (v2)](http://springroll.io) for application management.
- * [Pixi.js](http://www.pixijs.com/) for rendering visuals.
+* The [Tiled](http://www.mapeditor.org/) map editor for level creation.
+* [SpringRoll (v2)](http://springroll.io) for application management.
+* [Pixi.js](http://www.pixijs.com/) for rendering visuals.
 
 ## Key Features
 
@@ -18,13 +18,14 @@ Platypus uses:
 * Automatic scaling
 * Touch and keyboard input
 * Component-based development model
-* [Documentation](https://github.com/PBS-KIDS/Platypus/wiki)
+* [Documentation](https://makefully-studios.github.io/platypus/)
 
 Platypus in action:
+
 * Ready Jet GO! [Mission Earth](https://pbskids.org/readyjetgo/games/mission/index.html)
 * Wild Kratts [Monkey Mayhem](http://pbskids.org/wildkratts/games/monkey-mayhem/)
 
 ***
-[Code](https://github.com/PBS-KIDS/Platypus/) - [Wiki](https://github.com/PBS-KIDS/Platypus/wiki/) - [Docs](http://gopherwood.github.io/Platypus/)
+[Code](https://github.com/pbs/Platypus/) - [Docs](https://makefully-studios.github.io/platypus/)
 
 Platypus was developed by PBS KIDS and [Gopherwood Studios](http://gopherwoodstudios.com/). It is free to use (see licenses.txt), all assets in the example games are © Gopherwood Studios and/or © PBS KIDS.
