@@ -182,6 +182,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Calculates the amount of time elapsed in the current playlist of audio/silence.
+     * @method platypus.VOPlayer#getElapsed
      * @return {int} The elapsed time in milliseconds.
      */
     getElapsed () {
@@ -221,6 +222,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Pauses the current VO, caption, or silence timer if the VOPlayer is playing.
+     * @method platypus.VOPlayer#pause
      * @public
      */
     pause () {
@@ -238,6 +240,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Resumes the current VO, caption, or silence timer if the VOPlayer was paused.
+     * @method platypus.VOPlayer#resume
      * @public
      * @listens platypus.Game#tick
      */
@@ -263,6 +266,7 @@ class VOPlayer extends Messenger {
      * Plays a single audio alias, interrupting any current playback.
      * Alternatively, plays a list of audio files, timers, and/or functions.
      * Audio in the list will be preloaded to minimize pauses for loading.
+     * @method platypus.VOPlayer#play
      * @public
      * @param {String|Array} idOrList The alias of the audio file to play or the
      * array of items to play/call in order.
@@ -482,6 +486,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Stops playback of any audio/timer.
+     * @method platypus.VOPlayer#stop
      * @public
      */
     stop () {
@@ -523,6 +528,7 @@ class VOPlayer extends Messenger {
     /**
      * Sets the volume of VO playback.
      *
+     * @method platypus.VOPlayer#setVolume
      * @param {Number} volume
      */
     setVolume (volume) {
@@ -535,6 +541,7 @@ class VOPlayer extends Messenger {
     /**
      * Whether to mute captions.
      *
+     * @method platypus.VOPlayer#setCaptionMute
      * @param {Boolean} muted
      */
     setCaptionMute (muted) {
@@ -546,6 +553,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Unloads an audio track this VOPlayer has played.
+     * @method platypus.VOPlayer#unloadSound
      * @param sound {string} Sound to unload.
      * @public
      */
@@ -560,6 +568,7 @@ class VOPlayer extends Messenger {
 
     /**
      * Cleans up this VOPlayer.
+     * @method platypus.VOPlayer#destroy
      * @public
      */
     destroy () {

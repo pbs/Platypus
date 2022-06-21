@@ -19,6 +19,7 @@ import Sound from 'pixi-sound';
     /**
      * Plays a sound.
      *
+     * @method platypus.SFXPlayer#play
      * @param {String} sound Sound Id to play.
      * @param {Object} data PixiSound data to inform sound playback.
      * @return {pixiSound.MediaInstance} The media instance of the playing sound.
@@ -45,6 +46,7 @@ import Sound from 'pixi-sound';
     /**
      * Plays a sound.
      *
+     * @method platypus.SFXPlayer#stop
      * @param {pixiSound.MediaInstance} audio Audio to stop.
      * @public
      */
@@ -63,6 +65,7 @@ import Sound from 'pixi-sound';
     /**
      * Sets volume on all playing sound effects.
      *
+     * @method platypus.SFXPlayer#setVolume
      * @param {Number} volume A value between 0-1 to set volume on all playing sound effects.
      * @public
      */
@@ -81,6 +84,7 @@ import Sound from 'pixi-sound';
 
     /**
      * Cleans up this SFXPlayer.
+     * @method platypus.SFXPlayer#destroy
      * @public
      */
     destroy () {
