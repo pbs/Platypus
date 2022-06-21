@@ -254,7 +254,7 @@ export default (function () {
         * The visibility of the sprite.
         *
         * @property visible
-        * @memberof PIXI.DisplayObject#
+        * @memberof platypus.PIXIAnimation.prototype
         */
         visible: {
             get: function () {
@@ -269,6 +269,7 @@ export default (function () {
         * The PIXIAnimations paused state. If paused, the animation doesn't update.
         *
         * @property paused
+        * @memberof platypus.PIXIAnimation.prototype
         */
         paused: {
             get: function () {
