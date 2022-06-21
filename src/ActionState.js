@@ -10,82 +10,30 @@ const
      *
      * @memberof platypus
      * @class ActionState
-     * @param event {String} The name of the event to trigger on the Entity.
+     * @param event {string} The name of the event to trigger on the Entity.
      * @param states {Object} A list of key/value pairs describing what states should be `true` or `false` on the Entity for this action to be triggered.
      * @param trigger {Function} The function to be called if one or more inputs are active and the current state of the Entity is valid.
+     * @property {string} [event] The name of the event to trigger on the Entity.
+     * @property {Function} [trigger] The function to call if the ActionState is active.
+     * @property {boolean} [active] Whether any of the ActionState's inputs are active.
+     * @property {boolean} [wasActive] Whether any of the ActionState's inputs were active last update.
+     * @property {boolean} [valid] Whether the Entity's state is valid for this ActionState.
+     * @property {boolean} [wasValid] Whether the Entity's state was valid for this ActionState last update.
+     * @property {platypus.StateMap} [states] The state of the Entity that is valid for this ActionState.
+     * @property {Array} [inputs] The list of input toggles to track control input.
+     * @property {platypus.Data} [stateSummary] The message that is passed to the Entity if the ActionState is active.
      * @return {ActionState} Returns the new ActionState object.
      */
     ActionState = function (event, states, trigger) {
-        /**
-         * The name of the event to trigger on the Entity.
-         *
-         * @property event
-         * @type String
-         */
         this.event     = event;
-
-        /**
-         * The function to call if the ActionState is active.
-         *
-         * @property trigger
-         * @type Function
-         */
         this.trigger   = trigger;
-        
-        /**
-         * Whether any of the ActionState's inputs are active.
-         *
-         * @property active
-         * @type Boolean
-         */
         this.active    = false;
-
-        /**
-         * Whether any of the ActionState's inputs were active last update.
-         *
-         * @property wasActive
-         * @type Boolean
-         */
         this.wasActive = false;
-
-        /**
-         * Whether the Entity's state is valid for this ActionState.
-         *
-         * @property valid
-         * @type Boolean
-         */
         this.valid     = true;
-
-        /**
-         * Whether the Entity's state was valid for this ActionState last update.
-         *
-         * @property wasValid
-         * @type Boolean
-         */
         this.wasValid  = true;
-
-        /**
-         * The state of the Entity that is valid for this ActionState.
-         *
-         * @property states
-         * @type platypus.StateMap
-         */
         this.states = StateMap.setUp(states);
-
-        /**
-         * The list of input toggles to track control input.
-         *
-         * @property inputs
-         * @type Array
-         */
         this.inputs = arrayCache.setUp();
 
-        /**
-         * The message that is passed to the Entity if the ActionState is active.
-         *
-         * @property stateSummary
-         * @type platypus.Data
-         */
         this.stateSummary = Data.setUp(
             "pressed",   false,
             "released",  false,
