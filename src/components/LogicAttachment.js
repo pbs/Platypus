@@ -1,15 +1,9 @@
-/**
- * Creates an entity and connects it with the owner entity. This is useful for entities that have a one-to-one relationship with a given entity and must move as if connected to the host entity.
- *
- * @namespace platypus.components
- * @class LogicAttachment
- * @uses platypus.Component
- */
-/* global include, platypus */
-(function () {
-    'use strict';
+import Entity from '../Entity.js';
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
 
-    var Entity = include('platypus.Entity'),
+export default (function () {
+    var
         trigger = function () {
             var attachment = this.attachment;
             
@@ -18,7 +12,7 @@
             }
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.LogicAttachment.prototype */{
 
         id: 'LogicAttachment',
 
@@ -92,6 +86,17 @@
             offsetZ: 0.01
         },
 
+        /**
+         * Creates an entity and connects it with the owner entity. This is useful for entities that have a one-to-one relationship with a given entity and must move as if connected to the host entity.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#attach
+         * @listens platypus.Entity#change-attachment-offset
+         * @listens platypus.Entity#detach
+         * @listens platypus.Entity#handle-logic
+         */
         initialize: function () {
             var event = '',
                 events = this.events;
@@ -124,13 +129,7 @@
             }
         },
 
-        events: {// These are messages that this component listens for
-
-            /**
-             * On receiving this message, updates the attached entity's position.
-             *
-             * @method 'handle-logic'
-             */
+        events: {
             "handle-logic": function () {
                 var offset = 0,
                     state  = this.state;
@@ -182,25 +181,27 @@
             /**
              * Creates and attaches the entity. The input value makes it possible to attach the entity on user input.
              *
-             * @method 'attach'
+             * @event platypus.Entity#attach
              * @param input {Object} An input object.
              * @param input.pressed {Boolean} If set to true, the entity is created and attached.
              */
             "attach": function (input) {
                 this.isAttached = !input || (input.pressed !== false);
             },
+
             /**
              * Detaches and removes the entity.
              *
-             * @method 'detach'
+             * @event platypus.Entity#detach
              */
             "detach": function () {
                 this.isAttached = false;
             },
+
             /**
              * Changes the x, y, and z offset of the attachment.
              *
-             * @method 'change-attachment-offset'
+             * @event platypus.Entity#change-attachment-offset
              * @param offset {Object} An object containing the offset values.
              * @param input.x {Number} The new X offset.
              * @param input.y {Number} The new Y offset.
@@ -238,7 +239,7 @@
                 });
             }
             
-            return Array.setUp();
+            return arrayCache.setUp();
         }
     });
 }());

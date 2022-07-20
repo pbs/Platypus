@@ -1,21 +1,19 @@
 /**
  * This component listens for specified local entity messages and re-broadcasts them at the scene level.
  *
- * @namespace platypus.components
+ * @memberof platypus.components
  * @class RelayGame
  * @uses platypus.Component
  */
-/*global platypus */
-(function () {
-    'use strict';
+/* global platypus */
+import createComponentClass from '../factory.js';
 
+export default (function () {
     var broadcast = function () {
-        var currentScene = platypus.game.currentScene;
-        
-        currentScene.triggerOnChildren.apply(currentScene, arguments);
+        platypus.game.triggerOnChildren.apply(platypus.game, arguments);
     };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.RelayGame.prototype */{
         id: 'RelayGame',
         
         properties: {

@@ -1,20 +1,14 @@
-/**
- * This component listens for messages and, according to its preset settings, will remove and add components to the entity. This is useful if certain events should modify the behavior of the entity in some way: for example, acquiring a pogo-stick might add a jumping component so the hero can jump.
- *
- * @namespace platypus.components
- * @class ComponentSwitcher
- * @uses platypus.Component
- */
 /* global platypus */
-(function () {
-    'use strict';
+import {arrayCache, union} from '../utils/array.js';
+import createComponentClass from '../factory.js';
 
+export default (function () {
     var
         addSwitch = function (event) {
             this.switches.push(event);
         };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.ComponentSwitcher.prototype */{
         id: 'ComponentSwitcher',
         
         properties: {
@@ -51,19 +45,25 @@
             componentMap: null
         },
         
+        /**
+         * This component listens for messages and, according to its preset settings, will remove and add components to the entity. This is useful if certain events should modify the behavior of the entity in some way: for example, acquiring a pogo-stick might add a jumping component so the hero can jump.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#prepare-logic
+         * @fires platypus.Entity#child-entity-updated
+         * @fires platypus.Entity#add-remove-component-complete
+         */
         initialize: function () {
             var event = '';
             
-            this.switches = Array.setUp(); // The list of switches to make.
+            this.switches = arrayCache.setUp(); // The list of switches to make.
             
             if (this.componentMap) {
                 for (event in this.componentMap) {
                     if (this.componentMap.hasOwnProperty(event)) {
-                        /**
-                         * Message(s) listed by `componentMap` will add or remove components.
-                         *
-                         * @method '*'
-                         */
+                        // Message(s) listed by `componentMap` will add or remove components.
                         this.addEventListener(event, addSwitch.bind(this, event));
                     }
                 }
@@ -71,11 +71,6 @@
         },
         
         events: {
-            /**
-             * This component handles component-switching on this call so that it doesn't interfere with the "handle-logic" loop.
-             *
-             * @method 'prepare-logic'
-             */
             "prepare-logic": function () {
                 var i = 0;
                 
@@ -128,7 +123,7 @@
                 /**
                 * This message is triggered on the parent when the entity's components change.
                 *
-                * @event 'child-entity-updated'
+                * @event platypus.Entity#child-entity-updated
                 * @param entity {platypus.Entity} This is the entity itself.
                 */
                 owner.parent.triggerEvent('child-entity-updated', owner);
@@ -136,13 +131,13 @@
                 /**
                 * This message is triggered on the entity itself when its components change.
                 *
-                * @event 'add-remove-component-complete'
+                * @event platypus.Entity#add-remove-component-complete
                 */
                 owner.triggerEvent('add-remove-component-complete');
             },
             
             destroy: function () {
-                this.switches.recycle();
+                arrayCache.recycle(this.switches);
             }
         },
         
@@ -151,7 +146,7 @@
                 event = '',
                 i = 0,
                 component = null,
-                assets = Array.setUp(),
+                assets = arrayCache.setUp(),
                 arr = null;
             
             for (event in map) {
@@ -160,8 +155,8 @@
                         component = platypus.components[map[event].add[i].type];
                         if (component) {
                             arr = component.getAssetList(map[event].add[i], props, defaultProps);
-                            assets.union(arr);
-                            arr.recycle();
+                            union(assets, arr);
+                            arrayCache.recycle(arr);
                         }
                     }
                 }

@@ -1,13 +1,14 @@
 /**
  * This component listens for specified local entity messages and re-broadcasts them on its parent entity.
  *
- * @namespace platypus.components
+ * @memberof platypus.components
  * @class RelayParent
  * @uses platypus.Component
  */
-/*global platypus */
-(function () {
-    'use strict';
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    
 
     var broadcast = function () {
         var parent = this.owner.parent;
@@ -17,7 +18,7 @@
         }
     };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.RelayParent.prototype */{
         id: 'RelayParent',
         
         properties: {

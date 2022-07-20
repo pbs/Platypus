@@ -1,23 +1,12 @@
-/**
- * This component uses its definition to load an AudioVO component and either a RenderSprite or RenderAnimation component. These work in an interconnected way to render animations corresponding to one or more audio tracks.
- *
- * In addition to its own properties, this component also accepts all properties accepted by either [RenderSprite](platypus.components.RenderSprite.html), [RenderSprite](platypus.components.RenderAnimation.html), and [AudioVO](platypus.components.AudioVO.html) and passes them along when it creates those components.
- *
- * @namespace platypus.components
- * @class VoiceOver
- * @uses platypus.Component
- * @uses platypus.AudioVO
- * @uses platypus.RenderAnimation
- * @uses platypus.RenderSprite
- */
-/* global include, platypus */
-(function () {
-    'use strict';
+/* global platypus */
+import {arrayCache, greenSlice} from '../utils/array.js';
+import Async from '../Async.js';
+import AudioVO from './AudioVO.js';
+import RenderSprite from './RenderSprite.js';
+import createComponentClass from '../factory.js';
 
-    var AudioVO = include('platypus.components.AudioVO'),
-        RenderAnimation = include('platypus.components.RenderAnimation'),
-        RenderSprite = include('platypus.components.RenderSprite'),
-        getEventName = function (msg, VO) {
+export default (function () {
+    var getEventName = function (msg, VO) {
             if (VO === ' ') {
                 return msg + 'default';
             } else {
@@ -39,10 +28,14 @@
 
             if (typeof sound === 'string') {
                 definition.sound = sound;
-                definition.events = Array.setUp();
+                definition.events = arrayCache.setUp();
             } else if (typeof sound.sound === 'string') {
                 definition.sound = sound.sound;
-                definition.events = Array.setUp();
+                if (sound.events) {
+                    definition.events = greenSlice(sound.events);
+                } else {
+                    definition.events = arrayCache.setUp();
+                }
             } else {
                 for (key in sound.sound) {
                     if (sound.sound.hasOwnProperty(key)) {
@@ -51,14 +44,14 @@
                 }
 
                 if (definition.events) {
-                    definition.events = definition.events.greenSlice();
+                    definition.events = greenSlice(definition.events);
                 } else {
-                    definition.events = Array.setUp();
+                    definition.events = arrayCache.setUp();
                 }
             }
 
-            if (!voice && !mouthCues && platypus.game.app.config.mouthCues) {
-                mouthCues = platypus.game.app.config.mouthCues[definition.sound];
+            if (!voice && !mouthCues && platypus.game.settings.mouthCues) {
+                mouthCues = platypus.game.settings.mouthCues[definition.sound] || platypus.game.settings.mouthCues[definition.sound.substring(definition.sound.lastIndexOf('/') + 1)];
             }
 
             if (voice) {
@@ -90,7 +83,7 @@
         },
         createVO = function (sound, events, message, frameLength) {
             var i = 0,
-                definitions = Array.setUp();
+                definitions = arrayCache.setUp();
 
             if (!events[' ']) {
                 events[' '] = events.default;
@@ -110,7 +103,7 @@
             }
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.VoiceOver.prototype */{
         id: 'VoiceOver',
         
         properties: {
@@ -174,15 +167,64 @@
              *
              * @property voiceOverMap
              * @type Object
-             * @default {}
+             * @default null
              */
-            voiceOverMap: {}
+            voiceOverMap: null,
+
+            /**
+             * This generates voice over maps. An array of specifications for batches of voice maps to generate. Includes basic properties that can add a prefix to the event name, initial delay before the audio, and an onEnd event that fires when the voice over completes.
+             *
+             *      "generatedVoiceOverMap": [{
+             *          "eventPrefix": "vo-" //Optional. Defaults to "vo-". Is prefixed to the audio file name to create the event to call to trigger to VO.
+             *          "initialDelay": 0 //Optional. Defaults to 0. An intial audio delay before the VO starts. Useful to prevent audio from triggering as a scene is loading.
+             *          "onEndEvent": "an-event" //Optional. Defaults to "". This event fires when the VO completes.
+             *          "endEventTime": 500 //Optional. Defaults to 99999. When the onEnd event fires.
+             *          "audio": ["audio-0", "audio-1", "audio-2"] //Required. An array of strings that coorespond to the audio files to create a VOMap for, or a key/value list of id to audio path pairings.
+             *      }]
+             * 
+             *      A generated VO Map is equivalent to this structure:
+             * 
+             *      "prefix-audio-0": [
+             *          500, //initialDelay
+             *          {
+             *              "sound": {
+             *                  "sound": "audio-0", //the audio string
+             *                  "events": [
+             *                      {
+             *                          "event": "on-end-event", //onEndEvent
+             *                          "time": 99999
+             *                      }
+             *                  ]
+             *              }
+             *          }
+             *      ],
+             *
+             * @property generatedVoiceOverMap
+             * @type Object[]
+             * @default null
+             */
+            generatedVoiceOverMaps: null
+
         },
 
+        /**
+         * This component uses its definition to load an AudioVO component and a RenderSprite component. These work in an interconnected way to render animations corresponding to one or more audio tracks.
+         *
+         * In addition to its own properties, this component also accepts all properties accepted by [RenderSprite](platypus.components.RenderSprite.html) and [AudioVO](platypus.components.AudioVO.html) and passes them along when it creates those components.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @uses platypus.AudioVO
+         * @uses platypus.RenderSprite
+         * @constructs
+         * @listens platypus.Entity#load
+         */
         initialize: function (definition, callback) {
             var i = '',
-                componentInits = Array.setUp(),
-                audioDefinition     = {
+                x = 0,
+                y = 0,
+                componentInits = arrayCache.setUp(),
+                audioDefinition = {
                     audioMap: {},
                     aliases: definition.aliases
                 },
@@ -201,13 +243,12 @@
                     regX: definition.regX,
                     regY: definition.regY,
                     restart: definition.restart,
-                    rotate: definition.rotate,
                     scaleX: definition.scaleX,
                     scaleY: definition.scaleY,
                     spriteSheet: definition.spriteSheet,
                     stateBased: definition.stateBased || false
                 };
-            
+
             if (this.messagePrefix) {
                 this.message = this.messagePrefix + '-';
             } else {
@@ -223,7 +264,58 @@
             if (this.renderComponent) {
                 componentInits.push(componentInit.bind(this, platypus.components[this.renderComponent], animationDefinition));
             } else {
-                componentInits.push(componentInit.bind(this, (definition.animation ? RenderAnimation : RenderSprite), animationDefinition));
+                componentInits.push(componentInit.bind(this, RenderSprite, animationDefinition));
+            }
+
+            if (!this.voiceOverMap) {
+                this.voiceOverMap = {};
+            }
+
+            if (this.generatedVoiceOverMaps) {
+                const
+                    createMapping = (key, path, voBatch) => {
+                        if (!this.voiceOverMap[key]) {
+                            const
+                                delay = voBatch.initialDelay || 0,
+                                endEventTime = voBatch.endEventTime || 99999,
+                                onEnd = voBatch.onEndEvent || "";
+
+                            this.voiceOverMap[key] = [
+                                delay,
+                                {
+                                    "sound": {
+                                        "sound": path,
+                                        "events": [
+                                            {
+                                                "event": onEnd,
+                                                "time": endEventTime
+                                            }
+                                        ]
+                                    }
+                                }
+                            ];
+                        }
+                    };
+
+                for (y = 0; y < this.generatedVoiceOverMaps.length; y++) {
+                    const
+                        voBatch = this.generatedVoiceOverMaps[y],
+                        prefix = voBatch.eventPrefix || "vo-",
+                        audios = voBatch.audio;
+
+                    if (Array.isArray(audios)) {
+                        for (x = 0; x < audios.length; x++) {
+                            const audio = audios[x];
+                            createMapping(`${prefix}${audio}`, audio, voBatch);
+                        }
+                    } else {
+                        for (const key in audios) {
+                            if (audios.hasOwnProperty(key)) {
+                                createMapping(`${prefix}${key}`, audios[key], voBatch);
+                            }
+                        }
+                    }
+                }
             }
 
             for (i in this.voiceOverMap) {
@@ -233,19 +325,14 @@
             }
             componentInits.push(componentInit.bind(this, AudioVO, audioDefinition));
 
-            platypus.Async.setUp(componentInits, callback);
+            Async.setUp(componentInits, callback);
 
-            componentInits.recycle();
+            arrayCache.recycle(componentInits);
 
             return true;
         },
 
         events: {
-            /**
-             * On receiving this message, this component removes itself from the entity. (It creates the [[RenderSprite]] and [[AudioVO]] components in its constructor.)
-             *
-             * @method 'load'
-             */
             "load": function () {
                 this.owner.removeComponent(this);
             }
@@ -255,11 +342,11 @@
             var ss = component.spriteSheet || props.spriteSheet || (defaultProps && defaultProps.spriteSheet);
             
             if (typeof ss === 'string') {
-                return platypus.game.settings.spriteSheets[ss].images.greenSlice();
+                return greenSlice(platypus.game.settings.spriteSheets[ss].images);
             } else if (ss) {
-                return ss.images.greenSlice();
+                return greenSlice(ss.images);
             } else {
-                return Array.setUp();
+                return arrayCache.setUp();
             }
         }
     });

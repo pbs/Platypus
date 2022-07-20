@@ -1,13 +1,8 @@
-/**
- * Tutorial provides a framework for playing tutorials. It allows the user to define things such as under what conditions tutorials will play, how often they play, and which tutorials have priority.
- *
- * @class Tutorial
- * @uses platypus.Component
- * @since 0.8.7
- */
-/*global platypus */
-(function () {
-    'use strict';
+/* global platypus */
+import createComponentClass from '../factory.js';
+import {greenSlice} from '../utils/array.js';
+
+export default (function () {
     var entityAdded = function (entity) {
             var entityType = null;
                 
@@ -75,6 +70,12 @@
                 tutorial = this.tutorials.splice(toPlayIndex, 1)[0];
                 if (this.playing) {
                     if (tutorial.priority > this.playing.priority) {
+                        /**
+                         * On receiving this message, audio will stop playing.
+                         *
+                         * @event platypus.Entity#stop-audio
+                         * @param audioId {String} If an audioId is provided, that particular sound instance is stopped. Otherwise all audio is stopped.
+                         */
                         this.owner.triggerEvent('stop-audio');
                         this.play(tutorial);
                     } else {
@@ -95,7 +96,7 @@
             }
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.Tutorial.prototype */{
         
         id: 'Tutorial',
         
@@ -124,10 +125,20 @@
             "tutorialDefs": []
         },
          
-        publicProperties: {
-            
-        },
-        
+        /**
+         * Tutorial provides a framework for playing tutorials. It allows the user to define things such as under what conditions tutorials will play, how often they play, and which tutorials have priority.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#child-entity-added
+         * @listens platypus.Entity#child-entity-removed
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#peer-entity-added
+         * @listens platypus.Entity#peer-entity-removed
+         * @listens platypus.Entity#sequence-complete
+         * @fires platypus.Entity#stop-audio
+         */
         initialize: function () {
             var x = 0,
                 entityType = null,
@@ -147,8 +158,8 @@
                     platypus.debug.warn("Tutorial definition lacks events.");
                     continue;
                 }
-                tutorial.events = tutDef.events.greenSlice();
-                tutorial.originalEvents = tutDef.events.greenSlice();
+                tutorial.events = greenSlice(tutDef.events);
+                tutorial.originalEvents = greenSlice(tutDef.events);
                 tutorial.priority = tutDef.priority || 0;
                 tutorial.queue = tutDef.queue || false;
                 tutorial.timesToReplay = (typeof tutDef.timesToReplay === 'number') ? tutDef.timesToReplay : Infinity;
@@ -158,7 +169,7 @@
                 tutorial.requirements = {};
                 for (entityType in tutDef.requirements) {
                     if (tutDef.requirements.hasOwnProperty(entityType)) {
-                        tutorial.requirements[entityType] = tutDef.requirements[entityType].greenSlice();
+                        tutorial.requirements[entityType] = greenSlice(tutDef.requirements[entityType]);
                         if (!this.watchedEntities[entityType]) {
                             this.watchedEntities[entityType] = [];
                         }
@@ -170,61 +181,16 @@
         },
 
         events: {// These are messages that this component listens for
-            
-            /**
-             * Checks added entity to determine if it is one of the conditions for one of the tutorials. If so, we track it.
-             *
-             * @method 'child-entity-added'
-             * @param entity {Object} The added entity.
-             */
             "child-entity-added": entityAdded,
 
-            /**
-             * Checks added entity to determine if it is one of the conditions for one of the tutorials. If so, we track it.
-             *
-             * @method 'peer-entity-added'
-             * @param entity {Object} The added entity.
-             */
             "peer-entity-added": entityAdded,
 
-            /**
-             * Removes entities from the watch list when they are destroyed.
-             *
-             * @method 'child-entity-removed'
-             * @param entity {Object} The removed entity.
-             */
             "child-entity-removed": entityRemoved,
 
-            /**
-             * Removes entities from the watch list when they are destroyed.
-             *
-             * @method 'peer-entity-removed'
-             * @param entity {Object} The removed entity.
-             */
             "peer-entity-removed": entityRemoved,
             
-            //Using both logic-tick and handle-logic allows this to work at the Scene level or entity level.
-             /**
-             * Checks tutorials to determine if they should play.
-             *
-             * @method 'logic-tick'
-             * @param tick.delta {Number} The length of the tick.
-             */
-            "logic-tick": updateLogic,
-
-            /**
-             * Checks tutorials to determine if they should play.
-             *
-             * @method 'handle-logic'
-             * @param tick.delta {Number} The length of the tick.
-             */
             "handle-logic": updateLogic,
 
-            /**
-             * Fired when audioVO finishes. Clears the playing tutorial returning it to the internal list of tutorials if it will be played again.
-             *
-             * @method 'sequence-complete'
-             */
             "sequence-complete": function () {
                 if (this.playing.timesToReplay >= 0) {
                     this.tutorials.push(this.playing);
@@ -239,7 +205,7 @@
 
                 this.playing = tutorial;
                 if (this.playing.events.length === 0) {
-                    this.playing.events = this.playing.originalEvents.greenSlice();
+                    this.playing.events = greenSlice(this.playing.originalEvents);
                 }
 
                 toCall = this.playing.events.splice(Math.floor(Math.random() * this.playing.events.length), 1)[0];

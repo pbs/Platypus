@@ -1,19 +1,19 @@
-/**
- * CollisionDataContainer holds lists of CollisionData passed to entities during collisions with other entities. This class is primarily used by the ["HandlerCollision"]("HandlerCollision"%20Component.html) Component to trigger messages on child entities as collisions occur.
- *
- * @namespace platypus
- * @class CollisionDataContainer
- * @constructor
- * @return {platypus.CollisionDataContainer} Returns the new aabb object.
- */
-/* global platypus, recycle, springroll */
-platypus.CollisionDataContainer = (function () {
-    'use strict';
-    
+import {arrayCache} from './utils/array.js';
+import config from 'config';
+import recycle from 'recycle';
+
+export default (function () {
+    /**
+     * CollisionDataContainer holds lists of CollisionData passed to entities during collisions with other entities. This class is primarily used by the ["HandlerCollision"]("HandlerCollision"%20Component.html) Component to trigger messages on child entities as collisions occur.
+     *
+     * @memberof platypus
+     * @class CollisionDataContainer
+     * @return {platypus.CollisionDataContainer} Returns the new aabb object.
+     */
     var CollisionDataContainer = function () {
             if (!this.xData && !this.yData) {
-                this.xData = Array.setUp();
-                this.yData = Array.setUp();
+                this.xData = arrayCache.setUp();
+                this.yData = arrayCache.setUp();
                 this.xDeltaMovement = Infinity;
                 this.yDeltaMovement = Infinity;
             } else {
@@ -25,7 +25,7 @@ platypus.CollisionDataContainer = (function () {
     /**
      * Adds a CollisionData object to the container's X-axis if the movement distance is less than or equal to collision data collected so far.
      *
-     * @method tryToAddX
+     * @method platypus.CollisionDataContainer#tryToAddX
      * @param collisionData {platypus.CollisionData} The collision data to add.
      * @return {Boolean} Whether the collision data was added.
      */
@@ -44,7 +44,7 @@ platypus.CollisionDataContainer = (function () {
     /**
      * Adds a CollisionData object to the container's Y-axis if the movement distance is less than or equal to collision data collected so far.
      *
-     * @method tryToAddY
+     * @method platypus.CollisionDataContainer#tryToAddY
      * @param collisionData {platypus.CollisionData} The collision data to add.
      * @return {Boolean} Whether the collision data was added.
      */
@@ -63,7 +63,7 @@ platypus.CollisionDataContainer = (function () {
     /**
      * Resets the X and Y axes.
      *
-     * @method reset
+     * @method platypus.CollisionDataContainer#reset
      */
     proto.reset = function () {
         this.resetX(Infinity);
@@ -74,8 +74,7 @@ platypus.CollisionDataContainer = (function () {
      * Resets the X axis.
      *
      * @param delta {Number} The delta value of the X-axis.
-     * @method resetX
-     * @since 0.8.7
+     * @method platypus.CollisionDataContainer#resetX
      */
     proto.resetX = function (delta) {
         var xData = this.xData,
@@ -92,8 +91,7 @@ platypus.CollisionDataContainer = (function () {
      * Resets the Y axis.
      *
      * @param delta {Number} The delta value of the Y-axis.
-     * @method resetY
-     * @since 0.8.7
+     * @method platypus.CollisionDataContainer#resetY
      */
     proto.resetY = function (delta) {
         var yData = this.yData,
@@ -109,24 +107,21 @@ platypus.CollisionDataContainer = (function () {
     /**
      * Returns an CollisionDataContainer from cache or creates a new one if none are available.
      *
-     * @method CollisionDataContainer.setUp
+     * @method platypus.CollisionDataContainer.setUp
      * @return {platypus.CollisionDataContainer} The instantiated CollisionDataContainer.
-     * @since 0.8.7
      */
     /**
      * Returns a CollisionDataContainer back to the cache.
      *
-     * @method CollisionDataContainer.recycle
+     * @method platypus.CollisionDataContainer.recycle
      * @param CollisionDataContainer {platypus.CollisionDataContainer} The CollisionDataContainer to be recycled.
-     * @since 0.8.7
      */
     /**
      * Relinquishes properties of the CollisionDataContainer and recycles it.
      *
-     * @method recycle
-     * @since 0.8.7
+     * @method platypus.CollisionDataContainer#recycle
      */
-    recycle.add(CollisionDataContainer, !!springroll.Debug, 'CollisionDataContainer');
+    recycle.add(CollisionDataContainer, 'CollisionDataContainer', CollisionDataContainer, null, true, config.dev);
 
     return CollisionDataContainer;
 }());

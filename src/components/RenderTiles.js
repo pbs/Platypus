@@ -1,39 +1,16 @@
-/**
- * This component handles rendering tile map backgrounds.
- *
- * When rendering the background, this component figures out what tiles are being displayed and caches them so they are rendered as one image rather than individually.
- *
- * As the camera moves, the cache is updated by blitting the relevant part of the old cached image into a new cache and then rendering tiles that have shifted into the camera's view into the cache.
- *
- * @namespace platypus.components
- * @class RenderTiles
- * @uses platypus.Component
- */
-/* global include, platypus, recycle, springroll */
-(function () {
-    'use strict';
+/* global platypus */
+import {Container, Graphics, Rectangle, RenderTexture, Sprite} from 'pixi.js';
+import {arrayCache, greenSlice, greenSplice, union} from '../utils/array.js';
+import AABB from '../AABB.js';
+import PIXIAnimation from '../PIXIAnimation.js';
+import RenderContainer from './RenderContainer.js';
+import config from 'config';
+import createComponentClass from '../factory.js';
+import recycle from 'recycle';
 
+export default (function () {
     var EDGE_BLEED = 1,
         EDGES_BLEED = EDGE_BLEED * 2,
-        AABB              = include('platypus.AABB'),
-        PIXIAnimation     = include('platypus.PIXIAnimation'),
-        Application       = include('springroll.Application'),
-        CanvasRenderer    = include('PIXI.CanvasRenderer'),
-        Container         = include('PIXI.Container'),
-        Graphics          = include('PIXI.Graphics'),
-        ParticleContainer = Container, //Excluding ParticleContainer atm due to https://github.com/pixijs/pixi.js/issues/4008 -- include('PIXI.particles.ParticleContainer'),
-        Rectangle = include('PIXI.Rectangle'),
-        RenderContainer = include('platypus.components.RenderContainer'),
-        RenderTexture = include('PIXI.RenderTexture'),
-        Sprite            = include('PIXI.Sprite'),
-        clearRenderTexture = function (renderer, renderTexture, clearColor) { // This is pulled from https://github.com/pixijs/pixi.js/pull/3647 and should be in a future build of PIXI
-            var baseTexture = renderTexture.baseTexture,
-                renderTarget = baseTexture._glRenderTargets[renderer.CONTEXT_UID];
-                
-            if (renderTarget) {
-                renderTarget.clear(clearColor);
-            }
-        },
         doNothing = function () {
             return null;
         },
@@ -51,8 +28,6 @@
             return x;
         },
         transformCheck = function (v, tile) {
-            var x = 0;
-
             if (0x80000000 & v) {
                 tile.scale.x = -1;
             }
@@ -60,7 +35,7 @@
                 tile.scale.y = -1;
             }
             if (0x20000000 & v) {
-                x = tile.scale.x;
+                const x = tile.scale.x;
                 tile.scale.x = tile.scale.y;
                 tile.scale.y = -x;
                 tile.rotation = Math.PI / 2;
@@ -68,7 +43,7 @@
         },
         Template = function (tileSpriteSheet, id, uninitializedTiles) {
             this.id = id;
-            this.instances = Array.setUp();
+            this.instances = arrayCache.setUp();
             this.index = 0;
 
             // jit sprite
@@ -91,14 +66,15 @@
     };
 
     prototype.initialize = function () {
-        var index = +(this.id.substring(4)),
+        const
+            index = +(this.id.substring(4)),
             anim = 'tile' + (0x0fffffff & index),
             tile = new Sprite((this.tileSpriteSheet._animations[anim] || this.tileSpriteSheet._animations.default).texture);
             
         transformCheck(index, tile);
         tile.template = this; // backwards reference for clearing index later.
         this.instances.push(tile);
-        this.uninitializedTiles.greenSplice(this.uninitializedTiles.indexOf(this));
+        greenSplice(this.uninitializedTiles, this.uninitializedTiles.indexOf(this));
 
         delete this.getNext;
     };
@@ -114,7 +90,7 @@
             // Copy properties
             instance.scale    = template.scale;
             instance.rotation = template.rotation;
-            instance.anchor   = template.anchor;
+            instance.anchor   = template.anchor || template._animation.anchor;
         }
 
         this.index += 1;
@@ -133,13 +109,13 @@
             this.instances[i].destroy();
         }
         
-        this.instances.recycle();
+        arrayCache.recycle(this.instances);
         this.recycle();
     };
 
-    recycle.add(Template, !!springroll.Debug, 'Template');
+    recycle.add(Template, 'Template', Template, null, true, config.dev);
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.RenderTiles.prototype */{
 
         id: 'RenderTiles',
 
@@ -224,7 +200,6 @@
              * @property tileCache
              * @type boolean
              * @default true
-             * @since 0.6.4
              */
             tileCache: true,
 
@@ -252,7 +227,6 @@
              * @property top
              * @type Number
              * @default 0
-             * @since 0.7.5
              */
             top: 0,
             
@@ -262,11 +236,28 @@
              * @property left
              * @type Number
              * @default 0
-             * @since 0.7.5
              */
             left: 0
         },
 
+        /**
+         * This component handles rendering tile map backgrounds.
+         *
+         * When rendering the background, this component figures out what tiles are being displayed and caches them so they are rendered as one image rather than individually.
+         *
+         * As the camera moves, the cache is updated by blitting the relevant part of the old cached image into a new cache and then rendering tiles that have shifted into the camera's view into the cache.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#add-tiles
+         * @listens platypus.Entity#cache-sprite
+         * @listens platypus.Entity#camera-loaded
+         * @listens platypus.Entity#camera-update
+         * @listens platypus.Entity#change-tile
+         * @listens platypus.Entity#handle-render
+         * @listens platypus.Entity#peer-entity-added
+         */
         initialize: function (definition) {
             var imgMap = this.imageMap;
 
@@ -276,7 +267,7 @@
 
             this.tiles            = {};
 
-            this.renderer         = Application.instance.display.renderer;
+            this.renderer         = platypus.game.renderer;
             this.tilesSprite      = null;
             this.cacheTexture     = null;
             this.mapContainer      = null;
@@ -289,20 +280,19 @@
             this.cache = AABB.setUp();
             this.cachePixels = AABB.setUp();
 
-            this.uninitializedTiles = Array.setUp();
+            this.uninitializedTiles = arrayCache.setUp();
 
             // Set up containers
             this.spriteSheet = PIXIAnimation.formatSpriteSheet(this.spriteSheet);
             this.tileSpriteSheet = new PIXIAnimation(this.spriteSheet);
-            this.tileContainer = ((this.spriteSheet.images.length > 1) || (this.renderer instanceof CanvasRenderer)) ? new Container() : new ParticleContainer(15000, {position: true, rotation: true, scale: true});
+            this.tileContainer = new Container();
             this.mapContainer = new Container();
             this.mapContainer.addChild(this.tileContainer);
             
-            this.reorderedStage = false;
             this.updateCache = false;
 
             // Prepare map tiles
-            this.imageMap = Array.setUp(this.createMap(imgMap));
+            this.imageMap = arrayCache.setUp(this.createMap(imgMap));
 
             this.tilesWidth  = this.imageMap[0].length;
             this.tilesHeight = this.imageMap[0][0].length;
@@ -328,22 +318,10 @@
         },
 
         events: {
-            /**
-             * If this component should cache entities, it checks peers for a "renderCache" display object and adds the display object to its list of objects to render on top of the tile set.
-             *
-             * @method 'cache-sprite'
-             * @param entity {platypus.Entity} This is the peer entity to be checked for a renderCache.
-             */
             "cache-sprite": function (entity) {
                 this.cacheSprite(entity);
             },
 
-            /**
-             * If this component should cache entities, it checks peers for a "renderCache" display object and adds the display object to its list of objects to render on top of the tile set.
-             *
-             * @method 'peer-entity-added'
-             * @param entity {platypus.Entity} This is the peer entity to be checked for a renderCache.
-             */
             "peer-entity-added": function (entity) {
                 this.cacheSprite(entity);
             },
@@ -351,7 +329,7 @@
             /**
              * This event adds a layer of tiles to render on top of the existing layer of rendered tiles.
              *
-             * @method 'add-tiles'
+             * @event platypus.Entity#add-tiles
              * @param message.imageMap {Array} This is a 2D mapping of tile indexes to be rendered.
              */
             "add-tiles": function (definition) {
@@ -366,7 +344,7 @@
             /**
              * This event edits the tile index of a rendered tile.
              *
-             * @method 'change-tile'
+             * @event platypus.Entity#change-tile
              * @param tile {String} A string representing the name of the tile to switch to.
              * @param x {Number} The column of the tile to edit.
              * @param y {Number} The row of the tile to edit.
@@ -381,14 +359,6 @@
                 }
             },
 
-            /**
-             * Provides the width and height of the world.
-             *
-             * @method 'camera-loaded'
-             * @param camera {Object}
-             * @param camera.world {platypus.AABB} The dimensions of the world.
-             * @param camera.viewport {platypus.AABB} The AABB describing the camera viewport in world units.
-             */
             "camera-loaded": function (camera) {
                 this.worldWidth  = camera.world.width;
                 this.worldHeight = camera.world.height;
@@ -398,24 +368,12 @@
                 }
             },
 
-            /**
-             * Triggered when the camera moves, this function updates which tiles need to be rendered and caches the image.
-             *
-             * @method 'camera-update'
-             * @param camera {Object} Provides information about the camera.
-             * @param camera.viewport {platypus.AABB} The AABB describing the camera viewport in world units.
-             */
             "camera-update": function (camera) {
                 if (this.ready) {
                     this.updateCamera(camera);
                 }
             },
 
-            /**
-             * On receiving this message, determines whether to update which tiles need to be rendered and caches the image.
-             *
-             * @method 'handle-render'
-             */
             "handle-render": function () {
                 if (this.updateCache) {
                     this.updateCache = false;
@@ -437,8 +395,6 @@
                     mapContainer = this.mapContainer,
                     sprite = null,
                     z = this.owner.z;
-
-                container.reorder = true;
 
                 this.ready = true;
 
@@ -517,8 +473,8 @@
                 // Determine whether to merge this image with the background.
                 if (this.entityCache && object) { //TODO: currently only handles a single display object on the cached entity.
                     if (!this.doMap) {
-                        this.doMap = Array.setUp();
-                        this.cachedDisplayObjects = Array.setUp();
+                        this.doMap = arrayCache.setUp();
+                        this.cachedDisplayObjects = arrayCache.setUp();
                         this.populate = this.populateTilesAndEntities;
                     }
                     this.cachedDisplayObjects.push(object);
@@ -535,11 +491,11 @@
                     // Find tiles that should include this display object
                     for (x = left; x < right; x++) {
                         if (!this.doMap[x]) {
-                            this.doMap[x] = Array.setUp();
+                            this.doMap[x] = arrayCache.setUp();
                         }
                         for (y = top; y < bottom; y++) {
                             if (!this.doMap[x][y]) {
-                                this.doMap[x][y] = Array.setUp();
+                                this.doMap[x][y] = arrayCache.setUp();
                             }
                             this.doMap[x][y].push(object);
                         }
@@ -597,9 +553,9 @@
                     return mapDefinition;
                 }
 
-                map = Array.setUp();
+                map = arrayCache.setUp();
                 for (x = 0; x < mapDefinition.length; x++) {
-                    map[x] = Array.setUp();
+                    map[x] = arrayCache.setUp();
                     for (y = 0; y < mapDefinition[x].length; y++) {
                         index = mapDefinition[x][y];
                         this.updateTile(index, map, x, y);
@@ -720,10 +676,10 @@
                     z = this.owner.z,
                     col = null,
                     ct = null,
-                    cg = Array.setUp();
+                    cg = arrayCache.setUp();
 
                 for (x = 0; x < tsw; x += ctw) {
-                    col = Array.setUp();
+                    col = arrayCache.setUp();
                     cg.push(col);
                     for (y = 0; y < tsh; y += cth) {
                         // This prevents us from using too large of a cache for the right and bottom edges of the map.
@@ -798,7 +754,7 @@
                     z = 0,
                     layer = 0,
                     tile  = null,
-                    tiles = Array.setUp();
+                    tiles = arrayCache.setUp();
 
                 this.tileContainer.removeChildren();
                 for (x = bounds.left; x <= bounds.right; x++) {
@@ -823,7 +779,7 @@
                 for (z = 0; z < tiles.length; z++) {
                     tiles[z].clear();
                 }
-                tiles.recycle();
+                arrayCache.recycle(tiles);
             },
             
             populateTilesAndEntities: function (bounds, oldBounds) {
@@ -833,8 +789,8 @@
                     layer   = 0,
                     tile    = null,
                     ent     = null,
-                    ents    = Array.setUp(),
-                    tiles   = Array.setUp(),
+                    ents    = arrayCache.setUp(),
+                    tiles   = arrayCache.setUp(),
                     oList   = null;
 
                 this.tileContainer.removeChildren();
@@ -889,8 +845,8 @@
                     tiles[z].clear();
                 }
                 
-                tiles.recycle();
-                ents.recycle();
+                arrayCache.recycle(tiles);
+                arrayCache.recycle(ents);
             },
             
             renderCache: function (bounds, dest, src, wrapper, oldCache, oldBounds) {
@@ -902,7 +858,7 @@
                     src.addChild(oldCache); // To copy last rendering over.
                 }
 
-                clearRenderTexture(renderer, dest);
+                //clearRenderTexture(renderer, dest);
                 src.x = -bounds.left * this.tileWidth;
                 src.y = -bounds.top * this.tileHeight;
                 renderer.render(wrapper, dest);
@@ -918,7 +874,7 @@
                 border.lineStyle(1, 0x000000);
                 border.drawRect(0.5, 0.5, this.cacheClipWidth + 1, this.cacheClipHeight + 1);
 
-                clearRenderTexture(renderer, dest);
+                //clearRenderTexture(renderer, dest);
 
                 // There is probably a better way to do this. Currently for the extrusion, everything is rendered once offset in the n, s, e, w directions and then once in the middle to create the effect.
                 wrapper.mask = border;
@@ -1006,7 +962,7 @@
                             this.container.removeChild(grid[x][y]);
                         }
                     }
-                    grid.recycle(2);
+                    arrayCache.recycle(grid, 2);
                     delete this.cacheGrid;
                 } else if (this.tilesSprite) {
                     if (this.tilesSprite.texture.alternate) {
@@ -1018,7 +974,7 @@
                     this.container.removeChild(this.mapContainer);
                 }
                 
-                img.recycle(2);
+                arrayCache.recycle(img, 2);
                 
                 for (key in this.tiles) {
                     if (this.tiles.hasOwnProperty(key)) {
@@ -1034,7 +990,7 @@
                     for (x = 0; x < this.cachedDisplayObjects.length; x++) {
                         this.cachedDisplayObjects[x].destroy();
                     }
-                    this.cachedDisplayObjects.recycle();
+                    arrayCache.recycle(this.cachedDisplayObjects);
 
                     for (x = 0; x < map.length; x++) {
                         if (map[x]) {
@@ -1043,16 +999,16 @@
                                     map[x][y].recycle();
                                 }
                             }
-                            map[x].recycle();
+                            arrayCache.recycle(map[x]);
                         }
                     }
-                    map.recycle();
+                    arrayCache.recycle(map);
                 }
                 
                 this.laxCam.recycle();
                 this.cache.recycle();
                 this.cachePixels.recycle();
-                this.uninitializedTiles.recycle();
+                arrayCache.recycle(this.uninitializedTiles);
             }
         },
         
@@ -1063,11 +1019,11 @@
                         if (typeof ss === 'string') {
                             return getImages(spriteSheets[ss], spriteSheets);
                         } else if (ss.images) {
-                            return ss.images.greenSlice();
+                            return greenSlice(ss.images);
                         }
                     }
 
-                    return Array.setUp();
+                    return arrayCache.setUp();
                 };
             
             return function (component, props, defaultProps) {
@@ -1082,19 +1038,19 @@
                         return getImages(ss, spriteSheets);
                     } else if (Array.isArray(ss)) {
                         i = ss.length;
-                        images = Array.setUp();
+                        images = arrayCache.setUp();
                         while (i--) {
                             arr = getImages(ss[i], spriteSheets);
-                            images.union(arr);
-                            arr.recycle();
+                            union(images, arr);
+                            arrayCache.recycle(arr);
                         }
                         return images;
                     } else if (ss.images) {
-                        return ss.images.greenSlice();
+                        return greenSlice(ss.images);
                     }
                 }
                 
-                return Array.setUp();
+                return arrayCache.setUp();
             };
         }())
     });

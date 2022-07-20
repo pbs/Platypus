@@ -1,16 +1,10 @@
-/**
- * Timeline enables the scheduling of events based on a linear timeline
- *
- * @class Timeline
- * @uses platypus.Component
- * @since 0.8.7
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var Data = include('platypus.Data'),
-        pause = function () {
+/* global platypus */
+import {arrayCache, greenSplice} from '../utils/array.js';
+import Data from '../Data.js';
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    var pause = function () {
             this.active--;
         },
         play = function () {
@@ -28,13 +22,13 @@
             while (i--) {
                 instance = instances[i];
                 if (instance.remove) {
-                    instances.greenSplice(i);
-                    instance.timeline.recycle(2);
+                    greenSplice(instances, i);
+                    arrayCache.recycle(instance.timeline);
                     instance.recycle();
                 } else if (instance.active) {
                     if (instance.timeline.length === 0) {
-                        instances.greenSplice(i);
-                        instance.timeline.recycle(2);
+                        greenSplice(instances, i);
+                        arrayCache.recycle(instance.timeline);
                         instance.recycle();
                     } else {
                         this.progressTimeline(instance, delta);
@@ -43,7 +37,7 @@
             }
         };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.Timeline.prototype */{
         
         id: 'Timeline',
         
@@ -75,10 +69,19 @@
             "timelines": {}
         },
         
+        /**
+         * Timeline enables the scheduling of events based on a linear timeline
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#stop-active-timelines
+         */
         initialize: function () {
             var x = 0;
             
-            this.timelineInstances = Array.setUp();
+            this.timelineInstances = arrayCache.setUp();
             for (x in this.timelines) {
                 if (this.timelines.hasOwnProperty(x)) {
                     this.addEventListener(x, timelineTrigger.bind(this, x));
@@ -87,28 +90,12 @@
         },
 
         events: {
-            //Using both logic-tick and handle-logic allows this to work at the Scene level or entity level.
-            /**
-             * Checks game clock against timelines and triggers events as needed.
-             *
-             * @method 'logic-tick'
-             * @param tick.delta {Number} The length of the tick.
-             */
-            "logic-tick": updateLogic,
-
-            /**
-             * Checks game clock against timelines and triggers events as needed.
-             *
-             * @method 'handle-logic'
-             * @param tick.delta {Number} The length of the tick.
-             */
             "handle-logic": updateLogic,
 
             /**
              * Stops all timelines.
              *
-             * @method 'stop-active-timelines'
-             * @since v0.12.0
+             * @event platypus.Entity#stop-active-timelines
              */
             "stop-active-timelines": function () {
                 var instances = this.timelineInstances,
@@ -122,7 +109,7 @@
         
         methods: {
             createTimeStampedTimeline: function (timeline) {
-                var timeStampedTimeline = Array.setUp(),
+                var timeStampedTimeline = arrayCache.setUp(),
                     x = 0,
                     timeOffset = 0,
                     entry = null;
@@ -206,10 +193,10 @@
                 
                 while (i--) {
                     instance = instances[i];
-                    instance.timeline.recycle(2);
+                    arrayCache.recycle(instance.timeline);
                     instance.recycle();
                 }
-                instances.recycle();
+                arrayCache.recycle(instances);
                 this.timelineInstances = null;
             }
         }

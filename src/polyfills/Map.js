@@ -1,16 +1,11 @@
 /**
- * @namespace window
- */
-/**
  * This class defines a limited polyfill for Map. If the browser supports Map, this class is not used.
  *
+ * @memberof window
  * @class Map
- * @since 0.8.0
  */
 /* global window */
-(function (Object) {
-    'use strict';
-    
+export default (function (Object) {
     var mapDefinition = null,
         Map = null,
         proto = null;
@@ -38,7 +33,7 @@
             /**
              * Returns the value of the provided key.
              *
-             * @method get
+             * @method window.Map#get
              * @param key {String} The key to lookup.
              * @return value {any} The value of the provded key.
              */
@@ -51,7 +46,7 @@
             /**
              * Determines whether the provided key is available in this Map.
              *
-             * @method has
+             * @method window.Map#has
              * @param key {String} The key to lookup.
              * @return value {Boolean} Whether the key is listed in this Map.
              */
@@ -64,7 +59,7 @@
             /**
              * Sets a value to a key in the Map.
              *
-             * @method set
+             * @method window.Map#set
              * @param key {String} The key to associate with the provided value.
              * @param value {any} The value to be stored by the Map.
              * @chainable
@@ -79,7 +74,7 @@
             /**
              * Deletes a key (and value) from the Map.
              *
-             * @method delete
+             * @method window.Map#delete
              * @param key {String} The key to delete from the Map.
              * @return value {any} The value of the key is returned.
              */

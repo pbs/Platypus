@@ -1,16 +1,15 @@
-/**
- * This class defines a generic data object to use for messaging. It includes recycle methods to encourage reuse.
- *
- * @namespace platypus
- * @class Data
- * @constructor
- * @return {Data} Returns the new Data object.
- * @since 0.7.1
- */
-/*global platypus, recycle, springroll */
-platypus.Data = (function () {
-    'use strict';
-    
+import config from 'config';
+import recycle from 'recycle';
+
+export default (function () {
+    /**
+     * This class defines a generic data object to use for messaging. It includes recycle methods to encourage reuse.
+     *
+     * @memberof platypus
+     * @class Data
+     * @param {String|Object} first Can be an object of key/value pairs or the parameters can be an alternating list of keys and values.
+     * @return {Data} Returns the new Data object.
+     */
     var
         Data = function (first) {
             var i = arguments.length,
@@ -39,24 +38,21 @@ platypus.Data = (function () {
     /**
      * Returns Data from cache or creates a new one if none are available.
      *
-     * @method Data.setUp
+     * @method platypus.Data.setUp
      * @return {platypus.Data} The instantiated Data.
-     * @since 0.7.1
      */
     /**
      * Returns Data back to the cache. Prefer the Data's recycle method since it recycles property objects as well.
      *
-     * @method Data.recycle
+     * @method platypus.Data.recycle
      * @param {platypus.Data} The Data to be recycled.
-     * @since 0.7.1
      */
     /**
      * Relinquishes Data properties and recycles it.
      *
-     * @method recycle
-     * @since 0.7.1
+     * @method platypus.Data#recycle
      */
-    recycle.add(Data, !!springroll.Debug, 'Data', function () {
+    recycle.add(Data, 'Data', Data, function () {
         var key = '';
         
         for (key in this) {
@@ -64,8 +60,7 @@ platypus.Data = (function () {
                 delete this[key];
             }
         }
-        Data.recycle(this);
-    });
+    }, true, config.dev);
     
     return Data;
 }());

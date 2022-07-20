@@ -1,18 +1,11 @@
-/**
- * This component causes the tile-map to collide with other entities. It must be part of a collision group and will cause "hit-by-tile" messages to fire on colliding entities.
- *
- * @namespace platypus.components
- * @class CollisionTiles
- * @uses platypus.Component
- */
-/* global include, platypus */
-(function () {
-    'use strict';
-    
-    var AABB = include('platypus.AABB'),
-        CollisionShape = include('platypus.CollisionShape'),
-        Data = include('platypus.Data'),
-        maskJumpThrough = 0x10000000,
+import AABB from '../AABB.js';
+import CollisionShape from '../CollisionShape.js';
+import Data from '../Data.js';
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    var maskJumpThrough = 0x10000000,
         maskRotation = 0x20000000,
         maskXFlip = 0x80000000,
         maskYFlip = 0x40000000,
@@ -79,10 +72,10 @@
         copySection = function (array, originX, originY, width, height) {
             var x   = 0,
                 y   = 0,
-                arr = Array.setUp();
+                arr = arrayCache.setUp();
 
             for (y = 0; y < height; y++) {
-                arr[y] = Array.setUp();
+                arr[y] = arrayCache.setUp();
                 for (x = 0; x < width; x++) {
                     arr[y][x] = array[originX + x][originY + y];
                 }
@@ -92,10 +85,10 @@
         cutSection = function (array, originX, originY, width, height) {
             var x   = 0,
                 y   = 0,
-                arr = Array.setUp();
+                arr = arrayCache.setUp();
 
             for (y = 0; y < height; y++) {
-                arr[y] = Array.setUp();
+                arr[y] = arrayCache.setUp();
                 for (x = 0; x < width; x++) {
                     arr[y][x] = array[originX + x][originY + y];
                     array[originX + x][originY + y] = -1;
@@ -126,7 +119,7 @@
                         array[originX + x][originY + y] = fD(arr[x][y]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "diagonal-inverse": function (array, originX, originY, width, height) {
@@ -140,7 +133,7 @@
                         array[originX + width - x - 1][originY + height - y - 1] = fDI(arr[x][y]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "horizontal": function (array, originX, originY, width, height) {
@@ -154,7 +147,7 @@
                         array[originX + width - x - 1][originY + y] = fX(arr[y][x]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "vertical": function (array, originX, originY, width, height) {
@@ -168,7 +161,7 @@
                         array[originX + x][originY + height - y - 1] = fY(arr[y][x]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "rotate-90": function (array, originX, originY, width, height) {
@@ -182,7 +175,7 @@
                         array[originX + height - y - 1][originY + x] = r90(arr[y][x]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "rotate-180": function (array, originX, originY, width, height) {
@@ -196,7 +189,7 @@
                         array[originX + width - x - 1][originY + height - y - 1] = r180(arr[y][x]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "rotate-270": function (array, originX, originY, width, height) {
@@ -210,7 +203,7 @@
                         array[originX + y][originY + width - x - 1] = r270(arr[y][x]);
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             },
             "translate": function (array, originX, originY, width, height, dx, dy) {
@@ -223,12 +216,12 @@
                         array[originX + x + dx][originY + y + dy] = arr[y][x];
                     }
                 }
-                arr.recycle(2);
+                arrayCache.recycle(arr, 2);
                 return array;
             }
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.CollisionTiles.prototype */{
         id: 'CollisionTiles',
         
         properties: {
@@ -238,7 +231,6 @@
              * @property collisionTypeMap
              * @type Object
              * @default null
-             * @since 0.8.3
              */
             collisionTypeMap: null,
             
@@ -248,7 +240,6 @@
              * @property collisionType
              * @type String
              * @default "tiles"
-             * @since 0.8.3
              */
             collisionType: 'tiles',
             
@@ -258,7 +249,6 @@
              * @property top
              * @type Number
              * @default 0
-             * @since 0.7.5
              */
             top: 0,
             
@@ -268,7 +258,6 @@
              * @property left
              * @type Number
              * @default 0
-             * @since 0.7.5
              */
             left: 0
         },
@@ -301,6 +290,16 @@
              */
             tileHeight: 10
         },
+
+        /**
+         * This component causes the tile-map to collide with other entities. It must be part of a collision group and will cause "hit-by-tile" messages to fire on colliding entities.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#transform
+         * @listens platypus.Entity#translate
+         */
         initialize: function () {
             this.tileOffsetLeft  = this.tileWidth / 2 + this.left;
             this.tileOffsetTop = this.tileHeight / 2 + this.top;
@@ -316,8 +315,8 @@
                 "height", this.tileHeight
             );
             
-            this.storedTiles = Array.setUp();
-            this.serveTiles = Array.setUp();
+            this.storedTiles = arrayCache.setUp();
+            this.serveTiles = arrayCache.setUp();
             this.storedTileIndex = 0;
             
             this.aabb = AABB.setUp();
@@ -331,33 +330,10 @@
         },
         
         events: {
-            /**
-             * Performs a transform of a subset of the collision tile grid.
-             *
-             * @method 'transform'
-             * @param [transform] {Object} A list of key/value pairs describing the transform.
-             * @param [transform.type="horizontal"] {String} The type of transform; one of the following: "horizontal", "vertical", "diagonal", "diagonal-inverse", "rotate-90", "rotate-180", "rotate-270". Height and width should match for diagonal flips and 90 degree rotations.
-             * @param [transform.left=0] {number} Grid coordinate for the left side of the bounding box.
-             * @param [transform.top=0] {number} Grid coordinate for the top of the bounding box.
-             * @param [transform.width=grid.width] {number} Cell width of the bounding box.
-             * @param [transform.height=grid.height] {number} Cell height of the bounding box.
-             */
             "transform": function (transform) {
                 this.transform(transform);
             },
 
-            /**
-             * Performs a translation of a subset of the collision tile grid.
-             *
-             * @method 'translate'
-             * @param [translate] {Object} A list of key/value pairs describing the translation.
-             * @param [translate.dx=0] {number} Movement in columns.
-             * @param [translate.dy=0] {number} Movement in rows.
-             * @param [translate.left=0] {number} Grid coordinate for the left side of the bounding box.
-             * @param [translate.top=0] {number} Grid coordinate for the top of the bounding box.
-             * @param [translate.width=grid.width] {number} Cell width of the bounding box.
-             * @param [translate.height=grid.height] {number} Cell height of the bounding box.
-             */
             "translate": function (translate) {
                 this.translate(translate);
             }
@@ -426,19 +402,19 @@
                     i = store.length;
                 
                 this.shapeDefinition.recycle();
-                delete this.shapeDefinition;
+                this.shapeDefinition = null;
                 
                 while (i--) {
                     store[i].recycle();
                 }
-                store.recycle();
-                delete this.storedTiles;
+                arrayCache.recycle(store);
+                this.storedTiles = null;
 
-                this.serveTiles.recycle();
-                delete this.serveTiles;
+                arrayCache.recycle(this.serveTiles);
+                this.serveTiles = null;
                 
                 this.aabb.recycle();
-                delete this.aabb;
+                this.aabb = null;
             }
         },
         
@@ -446,7 +422,7 @@
             /**
              * Returns the axis-aligned bounding box of the entire map.
              *
-             * @method getAABB
+             * @method platypus.components.CollisionTiles#getAABB
              * @return aabb {platypus.AABB} The returned object provides the top, left, width, and height of the collision map.
              */
             getAABB: function () {
@@ -456,7 +432,7 @@
             /**
              * Confirms whether a particular map grid coordinate contains a tile.
              *
-             * @method isTile
+             * @method platypus.components.CollisionTiles#isTile
              * @param x {number} Integer specifying the column of tiles in the collision map to check.
              * @param y {number} Integer specifying the row of tiles in the collision map to check.
              * @return {boolean} Returns `true` if the coordinate contains a collision tile, `false` if it does not.
@@ -468,7 +444,7 @@
             /**
              * Returns all the collision tiles within the provided axis-aligned bounding box as an array of shapes.
              *
-             * @method getTileShapes
+             * @method platypus.components.CollisionTiles#getTileShapes
              * @param aabb {platypus.AABB} The axis-aligned bounding box for which tiles should be returned.
              * @param prevAABB {platypus.AABB} The axis-aligned bounding box for a previous location to test for jump-through tiles.
              * @param [collisionType] {String} The type of collision to check for. If not specified, "tiles" is used. (Since 0.8.3)
@@ -503,7 +479,7 @@
             /**
              * Performs a transform of a subset of the collision tile grid.
              *
-             * @method transform
+             * @method platypus.components.CollisionTiles#transform
              * @param [transform] {Object} A list of key/value pairs describing the transform.
              * @param [transform.type="horizontal"] {String} The type of transform; one of the following: "horizontal", "vertical", "diagonal", "diagonal-inverse", "rotate-90", "rotate-180", "rotate-270". Height and width should match for diagonal flips and 90 degree rotations.
              * @param [transform.left=0] {number} Grid coordinate for the left side of the bounding box.
@@ -529,7 +505,7 @@
             /**
              * Performs a translation of a subset of the collision tile grid.
              *
-             * @method translate
+             * @method platypus.components.CollisionTiles#translate
              * @param [translate] {Object} A list of key/value pairs describing the translation.
              * @param [translate.dx=0] {number} Movement in columns.
              * @param [translate.dy=0] {number} Movement in rows.
@@ -553,7 +529,7 @@
             /**
              * Gets a subset of the collision tile grid as a 2D array.
              *
-             * @method getCollisionMatrix
+             * @method platypus.components.CollisionTiles#getCollisionMatrix
              * @param originX {number} Grid coordinate for the left side of the bounding box.
              * @param originY {number} Grid coordinate for the top of the bounding box.
              * @param width {number} Cell width of the bounding box.
@@ -567,7 +543,7 @@
             /**
              * Sets a subset of the collision tile grid.
              *
-             * @method setCollisionMatrix
+             * @method platypus.components.CollisionTiles#setCollisionMatrix
              * @param sourceArray {Array} A 2D array describing the collision tiles to insert into the collision tile grid.
              * @param originX {number} Grid coordinate for the left side of the bounding box.
              * @param originY {number} Grid coordinate for the top of the bounding box.

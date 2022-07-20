@@ -1,20 +1,4 @@
 /**
-# COMPONENT **LogicStateMachine**
-This component is a general purpose state-machine for an entity, taking in various message inputs to determine the entity's state and triggering messages as necessary when a certain state occurs or several state combinations are in place.
-
-## Dependencies:
-- [[HandlerLogic]] (on entity's parent) - This component listens for a logic tick message to maintain and update its location.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - On a `tick` logic message, the component checks sustained inputs for changes in state.
-- **update-state** - Updates the entity's state according to this message's state information.
-  - @param message (object) - This is an object of key/value pairs where keys are states and the values are booleans to turn on and off states.
-- **state-changed** - Updates the entity's state according to this message's state information, and broadcasts any applicable messages.
-  - @param message (object) - This is an object of key/value pairs where keys are states and the values are booleans to turn on and off states.
-- **[input messages]** - This component listens for messages as determined by the JSON settings.
-
 ### Local Broadcasts:
 - **[output messages]** - This component triggers output messages as determined by the JSON settings.
 
@@ -43,13 +27,13 @@ This component is a general purpose state-machine for an entity, taking in vario
       }
     }
 */
-/* global include, platypus */
-(function () {
-    'use strict';
+import {arrayCache, greenSplice} from '../utils/array.js';
+import DataMap from '../DataMap.js';
+import StateMap from '../StateMap.js';
+import createComponentClass from '../factory.js';
 
-    var DataMap = include('platypus.DataMap'),
-        StateMap = include('platypus.StateMap'),
-        changeState = function (changes, state) {
+export default (function () {
+    var changeState = function (changes, state) {
             state.update(changes);
         },
         changeSustainedState = function (change, state) {
@@ -154,7 +138,7 @@ This component is a general purpose state-machine for an entity, taking in vario
         }
     };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.LogicStateMachine.prototype */{
         id: 'LogicStateMachine',
         
         properties: {
@@ -204,6 +188,16 @@ This component is a general purpose state-machine for an entity, taking in vario
             outputs: null
         },
         
+        /**
+         * This component is a general purpose state-machine for an entity, taking in various message inputs to determine the entity's state and triggering messages as necessary when a certain state occurs or several state combinations are in place.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#state-changed
+         */
         initialize: function (definition) {
             var i = 0,
                 inputDefinition = this.inputs,
@@ -217,7 +211,7 @@ This component is a general purpose state-machine for an entity, taking in vario
             this.state = thisState;
             
             if (inputDefinition) {
-                stateObjects = Array.setUp();
+                stateObjects = arrayCache.setUp();
                 for (key in inputDefinition) {
                     if (inputDefinition.hasOwnProperty(key)) {
                         state = StateMap.setUp(inputDefinition[key]);
@@ -226,7 +220,9 @@ This component is a general purpose state-machine for an entity, taking in vario
                         keys = state.keys;
                         i = keys.length;
                         while (i--) {
-                            thisState.set(keys[i], false);
+                            if (!thisState.has(keys[i])) { // set initial value to false if it's currently undefined.
+                                thisState.set(keys[i], false);
+                            }
                         }
                     }
                 }
@@ -246,8 +242,8 @@ This component is a general purpose state-machine for an entity, taking in vario
 
             this.snapshot = StateMap.setUp();
             this.last = StateMap.setUp();
-            this.queueTimes = Array.setUp();
-            this.queue = Array.setUp();
+            this.queueTimes = arrayCache.setUp();
+            this.queue = arrayCache.setUp();
             this.outputs = setUpOutputs(this.outputs);
         },
 
@@ -271,8 +267,8 @@ This component is a general purpose state-machine for an entity, taking in vario
                     
                     if (this.queueTimes[i] <= 0) {
                         this.owner.trigger(this.queue[i].event, this.queue[i].message);
-                        this.queueTimes.greenSplice(i);
-                        this.queue.greenSplice(i);
+                        greenSplice(this.queueTimes, i);
+                        greenSplice(this.queue, i);
                     }
                 }
             },
@@ -289,14 +285,14 @@ This component is a general purpose state-machine for an entity, taking in vario
                 if (this.outputs) {
                     ss.update(state);
                     
-                    queue = Array.setUp();
+                    queue = arrayCache.setUp();
                     handleOutput('outputs', ss, this.last, this.outputs, false, this.owner, queue);
                     i = queue.length;
                     while (i--) {
                         this.queue.push(queue[i]);
                         this.queueTimes.push(queue[i].delay);
                     }
-                    queue.recycle();
+                    arrayCache.recycle(queue);
                     
                     this.last.update(ss);
                 }
@@ -308,15 +304,15 @@ This component is a general purpose state-machine for an entity, taking in vario
                 var i = 0,
                     so = this.stateObjects;
                 
-                this.queueTimes.recycle();
-                this.queue.recycle();
+                arrayCache.recycle(this.queueTimes);
+                arrayCache.recycle(this.queue);
                 
                 if (so) {
                     i = so.length;
                     while (i--) {
                         so[i].recycle();
                     }
-                    so.recycle();
+                    arrayCache.recycle(so);
                     this.stateObjects = null;
                 }
 

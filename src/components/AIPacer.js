@@ -1,15 +1,7 @@
-/**
- * This component acts as a simple AI that will reverse the movement direction of an object when it collides with something.
- *
- * @namespace platypus.components
- * @class AIPacer
- * @uses platypus.Component
- */
-/*global platypus */
-(function () {
-    'use strict';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.AIPacer.prototype */{
         id: "AIPacer",
         
         properties: {
@@ -32,47 +24,57 @@
             direction: null
         },
         
+        /**
+         * This component acts as a simple AI that will reverse the movement direction of an object when it collides with something.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#handle-ai
+         * @listens platypus.Entity#turn-around
+         * @fires platypus.Entity#stop
+         * @fires platypus.Entity#go-left
+         * @fires platypus.Entity#go-right
+         * @fires platypus.Entity#go-down
+         * @fires platypus.Entity#go-up
+         */
         initialize: function () {
             this.lastDirection    = '';
             this.currentDirection = this.direction || ((this.movement === 'horizontal') ? 'left' : 'up');
         },
         
         events: {
-            /**
-             * This AI listens for a step message triggered by its entity parent in order to perform its logic on each tick.
-             *
-             * @method 'handle-ai'
-             */
             "handle-ai": function () {
                 if (this.currentDirection !== this.lastDirection) {
                     this.lastDirection = this.currentDirection;
                     
                     /**
-                     * Triggers this event prior to changing direction.
+                     * Stops motion in all directions until movement messages are again received.
                      *
-                     * @event 'stop'
+                     * @event platypus.Entity#stop
+                     * @param {boolean} [message.pressed] If `message` is included, the component checks the value of `pressed`: a value of false will not stop the entity.
                      */
                     this.owner.triggerEvent('stop');
                     
                     /**
                      * Triggers this event when the entity is moving right and collides with something.
                      *
-                     * @event 'go-left'
+                     * @event platypus.Entity#go-left
                      */
                     /**
                      * Triggers this event when the entity is moving left and collides with something.
                      *
-                     * @event 'go-right'
+                     * @event platypus.Entity#go-right
                      */
                     /**
                      * Triggers this event when the entity is moving up and collides with something.
                      *
-                     * @event 'go-down'
+                     * @event platypus.Entity#go-down
                      */
                     /**
                      * Triggers this event when the entity is moving down and collides with something.
                      *
-                     * @event 'go-up'
+                     * @event platypus.Entity#go-up
                      */
                     this.owner.triggerEvent('go-' + this.currentDirection);
                 }
@@ -81,7 +83,7 @@
             /**
              * On receiving this message, the component will check the collision side and re-orient itself accordingly.
              *
-             * @method 'turn-around'
+             * @event platypus.Entity#turn-around
              * @param collisionInfo {platypus.CollisionData} Uses direction of collision to determine whether to turn around.
              */
             "turn-around": function (collisionInfo) {

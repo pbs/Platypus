@@ -1,27 +1,21 @@
-/**
- * This component plays audio using the SpringRoll VOPlayer instance. Audio is played by triggering specific messages defined in the audio component definition.
- *
- * @namespace platypus.components
- * @class AudioVO
- * @uses platypus.Component
- * @since 0.6.0
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var Data = include('platypus.Data'),
-        sortByTime = function (a, b) {
+/*global platypus */
+import Data from '../Data.js';
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    var sortByTime = function (a, b) {
             return a.time - b.time;
         },
         addEvents = function (fromList, toList) {
-            var i = 0;
+            let i = 0;
             
             for (i = 0; i < fromList.length; i++) {
                 toList.push(Data.setUp(
                     'event', fromList[i].event,
                     'time', fromList[i].time || 0,
-                    'message', fromList[i].message
+                    'message', fromList[i].message || null,
+                    'interruptable', !!fromList[i].interruptable
                 ));
             }
             
@@ -32,14 +26,15 @@
             return toList;
         },
         offsetEvents = function (fromList, toList, player) {
-            var i = 0,
-                offset = player.getElapsed();
+            const offset = player.getElapsed();
+            let i = 0;
             
             for (i = 0; i < fromList.length; i++) {
                 toList.push(Data.setUp(
                     'event', fromList[i].event,
                     'time', (fromList[i].time || 0) + offset,
-                    'message', fromList[i].message || null
+                    'message', fromList[i].message || null,
+                    'interruptable', !!fromList[i].interruptable
                 ));
             }
             
@@ -49,7 +44,7 @@
         },
         setupEventList = function (sounds, eventList, player) { // This function merges events from individual sounds into a full list queued to sync with the SpringRoll voPlayer.
             var i = 0,
-                soundList = Array.setUp();
+                soundList = arrayCache.setUp();
             
             // Create alias-only sound list.
             for (i = 0; i < sounds.length; i++) {
@@ -64,54 +59,22 @@
             }
             return soundList;
         },
-        onComplete = function (complete, soundList) {
+        onComplete = function (completed, soundList) {
             this.playingAudio = false;
-            this.player.unloadSound();
             if (!this.owner.destroyed) {
-                this.checkTimeEvents(true);
-                
+                this.checkTimeEvents(true, completed);
+
                 /**
                  * When an audio sequence is finished playing, this event is triggered.
                  *
-                 * @event sequence-complete
+                 * @event platypus.Entity#sequence-complete
                  */
                 this.owner.triggerEvent('sequence-complete');
             }
-            soundList.recycle();
-        },
-        playSound = function (soundDefinition, value) {
-            var soundList = null,
-                eventList = Array.setUp(),
-                player = this.player;
-
-            if (typeof soundDefinition === 'string') {
-                soundList = Array.setUp(soundDefinition);
-            } else if (Array.isArray(soundDefinition)) {
-                soundList = setupEventList(soundDefinition, eventList, player);
-            } else {
-                if (soundDefinition.events) {
-                    addEvents(soundDefinition.events, eventList);
-                }
-                if (Array.isArray(soundDefinition.sound)) {
-                    soundList = setupEventList(soundDefinition.sound, eventList, player);
-                } else {
-                    soundList = Array.setUp(soundDefinition.sound);
-                }
-            }
-            
-            if (value && value.events) {
-                addEvents(value.events, eventList);
-            }
-
-            player.play(soundList, onComplete.bind(this, true, soundList), onComplete.bind(this, false, soundList));
-
-            // Removing `this.eventList` after play call since playing a VO clip could be stopping a currently playing clip with events in progress.
-            this.eventList.recycle();
-            this.eventList = eventList;
-            this.playingAudio = true;
+            arrayCache.recycle(soundList);
         };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.AudioVO.prototype */{
         id: 'AudioVO',
         
         properties: {
@@ -130,7 +93,8 @@
              *
              *               "events": [{
              *                   "event": "walk-to-the-left",
-             *                   "time": 1500
+             *                   "time": 1500,
+             *                   "interruptable": true // If `false`, event will trigger immediately when VO is interrupted or otherwise ended before event's time is reached. If `true`, event is not triggered if VO stops before time is reached. Defaults to `false`.
              *               }]
              *               // Optional. Used to specify a list of events to play once the VO begins.
              *           }
@@ -143,26 +107,29 @@
             audioMap: null
         },
             
+        /**
+         * This component plays audio using the SpringRoll VOPlayer instance. Audio is played by triggering specific messages defined in the audio component definition.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#handle-render
+         * @listens platypus.Entity#stop-audio
+         * @fires platypus.Entity#sequence-complete
+         */
         initialize: function () {
             var key = '';
             
-            this.eventList = Array.setUp();
+            this.eventList = arrayCache.setUp();
     
             this.playingAudio = false;
-            this.player = platypus.game.app.voPlayer;
-            this.player.trackSound = platypus.supports.iOS;
+            this.player = platypus.game.voPlayer;
     
             if (this.audioMap) {
                 for (key in this.audioMap) {
                     if (this.audioMap.hasOwnProperty(key)) {
-
-                        /**
-                         * Listens for messages specified by the `audioMap` and on receiving them, begins playing corresponding audio clips.
-                         *
-                         * @method '*'
-                         * @param [message.events] {Array} Used to specify the list of events to trigger while playing this audio sequence.
-                         */
-                        this.addEventListener(key, playSound.bind(this, this.audioMap[key]));
+                        // Listens for messages specified by the `audioMap` and on receiving them, begins playing corresponding audio clips.
+                        this.addEventListener(key, this.playSound.bind(this, this.audioMap[key]));
                     }
                 }
             }
@@ -171,11 +138,6 @@
         },
 
         events: {
-            /**
-             * On each `handle-render` message, this component checks its list of playing audio clips and stops any clips whose play length has been reached.
-             *
-             * @method 'handle-render'
-             */
             "handle-render": function () {
                 if (!this.paused) {
                     this.checkTimeEvents(false);
@@ -183,10 +145,14 @@
             },
 
             /**
-             * On receiving this message, audio will stop playing.
+             * Plays voice-over directly without using a predefined mapping from `audioMap`. This event accepts the same syntax as individual items in the `audioMap`.
              *
-             * @method 'stop-audio'
+             * @param {String|Array|Object} vo Voice-over track or tracks to play.
              */
+            "play-voice-over": function (vo) {
+                this.playSound(vo);
+            },
+
             "stop-audio": function () {
                 this.player.stop();
                 this.player.voList = []; // Workaround to prevent a Springroll bug wherein stopping throws an error due to `voList` being `null`.
@@ -194,18 +160,20 @@
         },
         
         methods: {
-            checkTimeEvents: function (finished) {
+            checkTimeEvents: function (finished, completed) {
                 var event = null,
                     events = this.eventList,
                     currentTime = 0,
                     owner = this.owner;
                 
                 if (events && events.length) {
-                    currentTime = this.player.getElapsed();
+                    currentTime = finished ? Infinity : this.player.getElapsed();
 
-                    while (events.length && (finished || (events[0].time <= currentTime))) {
-                        event = events.greenSplice(0);
-                        owner.trigger(event.event, event.message);
+                    while (events.length && (events[0].time <= currentTime)) {
+                        event = events.shift();
+                        if (!finished || completed || !event.interruptable) {
+                            owner.trigger(event.event, event.message);
+                        }
                         event.recycle();
                     }
                 }
@@ -216,7 +184,40 @@
                     this.player.stop();
                     this.player.voList = []; // Workaround to prevent a Springroll bug wherein stopping throws an error due to `voList` being `null`.
                 }
-                this.eventList.recycle();
+                arrayCache.recycle(this.eventList);
+                this.eventList = null;
+            },
+
+            playSound: function (soundDefinition, value) {
+                var soundList = null,
+                    eventList = arrayCache.setUp(),
+                    player = this.player;
+    
+                if (typeof soundDefinition === 'string') {
+                    soundList = arrayCache.setUp(soundDefinition);
+                } else if (Array.isArray(soundDefinition)) {
+                    soundList = setupEventList(soundDefinition, eventList, player);
+                } else {
+                    if (soundDefinition.events) {
+                        addEvents(soundDefinition.events, eventList);
+                    }
+                    if (Array.isArray(soundDefinition.sound)) {
+                        soundList = setupEventList(soundDefinition.sound, eventList, player);
+                    } else {
+                        soundList = arrayCache.setUp(soundDefinition.sound);
+                    }
+                }
+                
+                if (value && value.events) {
+                    addEvents(value.events, eventList);
+                }
+    
+                player.play(soundList, onComplete.bind(this, true, soundList), onComplete.bind(this, false, soundList));
+    
+                // Removing `this.eventList` after play call since playing a VO clip could be stopping a currently playing clip with events in progress.
+                arrayCache.recycle(this.eventList);
+                this.eventList = eventList;
+                this.playingAudio = true;
             }
         }
     });

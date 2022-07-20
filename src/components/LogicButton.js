@@ -1,18 +1,9 @@
-/**
- * Provides button functionality for a RenderSprite component.
- *
- * @namespace platypus.components
- * @class LogicButton
- * @uses platypus.Component
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var AABB = include('platypus.AABB'),
-        Data = include('platypus.Data');
+import AABB from '../AABB.js';
+import Data from '../Data.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicButton.prototype */{
 
         id: 'LogicButton',
 
@@ -48,9 +39,8 @@
              * The event to trigger when the user mouses over the button
              *
              * @property hoverAudio
-             * @type String or an Array of Strings and Message Objects
+             * @type String|String[]|Message[]
              * @default ""
-             * @since 0.9.0
              */
             "onHover": "",
 
@@ -78,7 +68,6 @@
              * @property toggle
              * @type Boolean
              * @default false
-             * @since 0.9.1
              */
             "toggle": false,
 
@@ -88,7 +77,6 @@
              * @property pressed
              * @type Boolean
              * @default false
-             * @since 0.9.1
              */
             "pressed": false
         },
@@ -100,7 +88,6 @@
              * @property bottom
              * @type Number
              * @default null
-             * @since 0.9.0
              */
             "bottom": null,
 
@@ -110,7 +97,6 @@
              * @property left
              * @type Number
              * @default null
-             * @since 0.9.0
              */
             "left": null,
 
@@ -120,7 +106,6 @@
              * @property right
              * @type Number
              * @default null
-             * @since 0.9.0
              */
             "right": null,
 
@@ -130,11 +115,32 @@
              * @property top
              * @type Number
              * @default null
-             * @since 0.9.0
              */
             "top": null
         },
 
+        /**
+         * Provides button functionality for a RenderSprite component.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#camera-update
+         * @listens platypus.Entity#disable
+         * @listens platypus.Entity#enable
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#highlight
+         * @listens platypus.Entity#pointerdown
+         * @listens platypus.Entity#pointerout
+         * @listens platypus.Entity#pointerover
+         * @listens platypus.Entity#pressup
+         * @listens platypus.Entity#toggle-disabled
+         * @listens platypus.Entity#toggle-highlight
+         * @listens platypus.Entity#unhighlight
+         * @fires platypus.Entity#pressed
+         * @fires platypus.Entity#cancelled
+         * @fires platypus.Entity#released
+         */
         initialize: function () {
             var state = this.owner.state;
             
@@ -156,12 +162,6 @@
         },
 
         events: {
-            /**
-             * This component uses location updates to reposition the entity if its bottom, left, right, or top properties have been set.
-             *
-             * @method 'handle-logic'
-             * @since 0.11.5
-             */
             "handle-logic": function () {
                 var bottom = this.bottom,
                     left = this.left,
@@ -177,24 +177,11 @@
                 }
             },
 
-            /**
-             * This component listens for camera updates to reposition the entity if its bottom, left, right, or top properties have been set.
-             *
-             * @method 'camera-update'
-             * @param camera {platypus.Data} Camera update information
-             * @param camera.viewport {platypus.AABB} The bounding box describing the camera viewport location in the world.
-             * @since 0.9.0
-             */
             "camera-update": function (camera) {
                 this.aabb.set(camera.viewport);
                 this.updatePosition(this.aabb);
             },
 
-            /**
-             * Triggers events per the component's definition when a press is made.
-             *
-             * @method 'pointerdown'
-             */
             "pointerdown": function (eventData) {
                 if (!this.state.get('disabled')) {
                     if (this.toggle) {
@@ -207,13 +194,12 @@
                         /**
                          * This event is triggered when the button is pressed to mimic keypress events. If the button is a toggle button, this only occurs on up-to-down.
                          *
-                         * @event 'pressed'
+                         * @event platypus.Entity#pressed
                          * @param buttonState {platypus.Data} The state of the button
                          * @param buttonState.pressed {Boolean} This is `true` for the 'pressed' event.
                          * @param buttonState.released {Boolean} This is `false` for the 'pressed' event.
                          * @param buttonState.triggered {Boolean} This is `true` for the 'pressed' event.
                          * @param buttonState.entity {platypus.Entity} The entity for which the original event occurred.
-                         * @since 0.9.1
                          */
                         this.updateStateAndTrigger('pressed');
                         if (eventData && eventData.pixiEvent && eventData.pixiEvent.stopPropagation) { // ensure a properly formed event has been sent
@@ -228,11 +214,6 @@
                 }
             },
 
-            /**
-             * Triggers events per the component's definition when a press is released.
-             *
-             * @method 'pressup'
-             */
             "pressup": function (eventData) {
                 var state = this.state;
 
@@ -245,13 +226,12 @@
                         /**
                          * This event is triggered when the button is pressed and the mouse/touch is dragged off-target before release.
                          *
-                         * @event 'cancelled'
+                         * @event platypus.Entity#cancelled
                          * @param buttonState {platypus.Data} The state of the button
                          * @param buttonState.pressed {Boolean} This is `false` for the 'cancelled' event.
                          * @param buttonState.released {Boolean} This is `true` for the 'cancelled' event.
                          * @param buttonState.triggered {Boolean} This is `false` for the 'cancelled' event.
                          * @param buttonState.entity {platypus.Entity} The entity for which the original event occurred.
-                         * @since 0.9.1
                          */
                         this.updateStateAndTrigger('cancelled');
                     } else if (this.toggle) {
@@ -270,13 +250,12 @@
                         /**
                          * This event is triggered when the button is released, or on the down-to-up change for toggle buttons.
                          *
-                         * @event 'released'
+                         * @event platypus.Entity#released
                          * @param buttonState {platypus.Data} The state of the button
                          * @param buttonState.pressed {Boolean} This is `false` for the 'released' event.
                          * @param buttonState.released {Boolean} This is `true` for the 'released' event.
                          * @param buttonState.triggered {Boolean} This is `false` for the 'released' event.
                          * @param buttonState.entity {platypus.Entity} The entity for which the original event occurred.
-                         * @since 0.9.1
                          */
                         this.updateStateAndTrigger('released');
                     }
@@ -296,11 +275,6 @@
                 this.readyToToggle = false;
             },
 
-            /**
-             * If a press moves over the button, it's not cancelled.
-             *
-             * @method 'pointerover'
-             */
             "pointerover": function () {
                 if (this.onHover) {
                     this.owner.trigger(this.onHover);
@@ -310,11 +284,6 @@
                 }
             },
 
-            /**
-             * If a press moves off of the button, it's cancelled.
-             *
-             * @method 'pointerout'
-             */
             "pointerout": function () {
                 if (this.state.get('pressed')) {
                     this.cancelled = true;
@@ -324,7 +293,7 @@
             /**
              * Disables the entity.
              *
-             * @method 'disable'
+             * @event platypus.Entity#disable
              */
             "disable": function () {
                 this.state.set('disabled', true);
@@ -334,7 +303,7 @@
             /**
              * Enables the entity.
              *
-             * @method 'enable'
+             * @event platypus.Entity#enable
              */
             "enable": function () {
                 this.state.set('disabled', false);
@@ -344,7 +313,7 @@
             /**
              * Toggles whether the entity is disabled.
              *
-             * @method 'toggle-disabled'
+             * @event platypus.Entity#toggle-disabled
              */
             "toggle-disabled": function () {
                 var value = this.state.get('disabled');
@@ -356,8 +325,7 @@
             /**
              * Sets the entity's highlighted state to `true`.
              *
-             * @method 'highlight'
-             * @since 0.8.6
+             * @event platypus.Entity#highlight
              */
             "highlight": function () {
                 this.state.set('highlighted', true);
@@ -366,8 +334,7 @@
             /**
              * Sets the entity's highlighted state to `false`.
              *
-             * @method 'unhighlight'
-             * @since 0.8.6
+             * @event platypus.Entity#unhighlight
              */
             "unhighlight": function () {
                 this.state.set('highlighted', false);
@@ -376,8 +343,7 @@
             /**
              * Toggles the entity's highlighted state.
              *
-             * @method 'toggle-highlight'
-             * @since 0.8.6
+             * @event platypus.Entity#toggle-highlight
              */
             "toggle-highlight": function () {
                 var state = this.state;

@@ -1,19 +1,11 @@
-/**
- * A component that handles updating the render components on entities that are rendering via PIXI. Calls 'handle-render on children entities every tick. Also initializes handlers for mouse events on the layer level.
- *
- * @namespace platypus.components
- * @class HandlerRender
- * @uses platypus.Component
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var Container = include('PIXI.Container'),
-        Data = include('platypus.Data'),
-        Interactive = include('platypus.components.Interactive');
+/* global platypus */
+import {Container} from 'pixi.js';
+import Data from '../Data.js';
+import Interactive from './Interactive.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.HandlerRender.prototype */{
 
         id: "HandlerRender",
 
@@ -34,7 +26,6 @@
              * @property interactive
              * @type Boolean|Object
              * @default false
-             * @since 0.9.1
              */
             interactive: false
         },
@@ -46,27 +37,45 @@
              * @property worldContainer
              * @type PIXI.Container
              * @default null
-             * @since 0.11.0
              */
             worldContainer: null,
-
             /**
-             * This is a read-only list of the world container and subcontainers for entities that should be rendered together.
+             * A multiplier that alters the speed at which the game is running. This is achieved by scaling the delta time in each tick.
+             * Defaults to 1. Values < 1 will slow down the rendering, > 1 will speed it up.
              *
-             * @property renderGroups
-             * @type Array
-             * @default null
-             * @since 0.11.10
+             * @property timeMultiplier
+             * @type number
+             * @default 1
              */
+             timeMultiplier: 1
         },
 
+        /**
+         * A component that handles updating the render components on entities that are rendering via PIXI. Calls 'handle-render on children entities every tick. Also initializes handlers for mouse events on the layer level.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#child-entity-added
+         * @listens platypus.Entity#load
+         * @listens platypus.Entity#pause-render
+         * @listens platypus.Entity#render-update
+         * @listens platypus.Entity#set-parent-render-container
+         * @listens platypus.Entity#tick
+         * @listens platypus.Entity#unpause-render
+         * @fires platypus.Entity#handle-render-load
+         * @fires platypus.Entity#handle-render
+         * @fires platypus.Entity#input-on
+         * @fires platypus.Entity#render-paused
+         * @fires platypus.Entity#render-unpaused
+         * @fires platypus.Entity#render-world
+         */
         initialize: function () {
-            var definition = null,
-                renderGroups = this.owner.renderGroups = this.renderGroups = Array.setUp();
-
+            let definition = null;
+            
             this.worldContainer = this.worldContainer || new Container();
+            this.worldContainer.sortableChildren = true;
             this.worldContainer.name = '';
-            renderGroups.push(this.worldContainer);
 
             if (this.interactive) {
                 definition = Data.setUp(
@@ -82,64 +91,47 @@
             this.renderMessage = Data.setUp(
                 'delta', 0,
                 'container', this.worldContainer,
-                'renderGroups', renderGroups
+                'tick', null
             );
         },
 
         events: {
-            /**
-             * Once the entity is loaded, this component triggers "render-world" to notify other components about the entities' display container.
-             *
-             * @method 'load'
-             */
             "load": function () {
                 /**
                  * Once the entity is loaded, this component triggers "render-world" to notify other components about the entities' display container.
                  *
-                 * @event 'render-world'
+                 * @event platypus.Entity#render-world
                  * @param data {Object}
                  * @param data.world {PIXI.Container} Contains entities to be rendered.
-                 * @param data.renderGroups {Array of PIXI.Container} Containers to categorize display of groups of entities.
                  */
                 this.owner.triggerEvent('render-world', {
-                    world: this.worldContainer,
-                    renderGroups: this.renderGroups
+                    world: this.worldContainer
                 });
 
                 /**
                  * This event is triggered once HandlerRender is ready to handle interactivity.
                  *
-                 * @event 'input-on'
+                 * @event platypus.Entity#input-on
                  */
                 this.owner.triggerEvent('input-on');
             },
 
-            /**
-             * Called when a new entity has been added to the parent and should be considered for addition to the handler. Entities are sent a reference the Container that we're rendering to, so they can add their display objects to it and the delta from the lastest tick.
-             *
-             * @method 'child-entity-added'
-             * @param entity {platypus.Entity} The entity added to the parent.
-             */
             "child-entity-added": function (entity) {
+                if (entity.container) {
+                    this.setParentRenderContainer(entity, entity.renderParent);
+                }
+                
                 /**
                  * Triggered on an entity added to the parent.
                  *
-                 * @event 'handle-render-load'
+                 * @event platypus.Entity#handle-render-load
                  * @param data {Object}
                  * @param data.delta {Number} The delta time for this tick.
                  * @param data.container {PIXI.Container} The display Container the entities display objects should be added to.
-                 * @param data.renderGroups {Array of PIXI.Container} Containers to categorize display of groups of entities.
                  */
                 entity.triggerEvent('handle-render-load', this.renderMessage);
             },
 
-            /**
-             * Pauses the children of this render Container. If a pause time is not provided. It remains paused until 'unpause-render' is called.
-             *
-             * @method 'pause-render'
-             * @param [data] {Object}
-             * @param data.time {Number} How long to pause.
-             */
             "pause-render": function (timeData) {
                 if (timeData && timeData.time) {
                     this.paused = timeData.time;
@@ -150,86 +142,101 @@
                     /**
                      * Notifies children entities that rendering updates have been paused.
                      *
-                     * @event 'render-paused'
-                     * @since 0.8.4
+                     * @event platypus.Entity#render-paused
                      */
                     this.owner.triggerEventOnChildren('render-paused');
                 }
             },
 
-            /**
-             * Unpauses the children of this render Container.
-             *
-             * @method 'unpause-render'
-             */
             "unpause-render": function () {
                 this.paused = 0;
                 if (this.owner.triggerEventOnChildren) {
                     /**
                      * Notifies children entities that rendering updates have been unpaused.
                      *
-                     * @event 'render-unpaused'
-                     * @since 0.8.4
+                     * @event platypus.Entity#render-unpaused
                      */
                     this.owner.triggerEventOnChildren('render-unpaused');
                 }
             },
 
-            /**
-             * Sends a 'handle-render' message to all the children in the Container. The children in the Container are also paused/unpaused if needed and sorted according to their z value.
-             *
-             * @method 'tick'
-             * @param tick {Object} An object containing tick data.
-             */
-            "tick": (function () {
-                var sort = function (a, b) {
-                    return a.z - b.z;
-                };
-
-                return function (tick) {
-                    var message = this.renderMessage,
-                        renderGroup = null,
-                        renderGroups = this.renderGroups,
-                        i = renderGroups.length;
-
-                    message.delta = tick.delta;
-
-                    if (this.paused > 0) {
-                        this.paused -= tick.delta;
-                        if (this.paused <= 0) {
-                            this.paused = 0;
-                        }
+            "tick": function (tick) {
+                if (this.paused > 0) {
+                    this.paused -= tick.delta;
+                    if (this.paused <= 0) {
+                        this.paused = 0;
                     }
+                }
 
-                    if (!this.paused && this.owner.triggerEventOnChildren) {
-                        /**
-                         * Triggered every tick on the children entities.
-                         *
-                         * @event 'handle-render'
-                         * @param data {Object}
-                         * @param data.delta {Number} The delta time for this tick.
-                         * @param data.container {PIXI.Container} The display Container the entities display objects should be added to.
-                         * @param data.renderGroups {Array of PIXI.Container} Containers to categorize display of groups of entities.
-                         */
-                        this.owner.triggerEventOnChildren('handle-render', message);
-                    }
+                if (!this.paused) {
+                    this.renderUpdate(tick);
+                }
+            },
 
-                    while (i--) {
-                        renderGroup = renderGroups[i];
-                        if (renderGroup.reorder) {
-                            renderGroup.reorder = false;
-                            renderGroup.children.sort(sort);
-                        }
-                    }
-                };
-            }())
+            "render-update": function (tick) {
+                this.renderUpdate(tick);
+            },
+
+            "set-parent-render-container": function (entity, container) {
+                this.setParentRenderContainer(entity, container);
+            }
         },
         methods: {
+            renderUpdate: function (tick) {
+                const message = this.renderMessage;
+
+                message.gameDelta = (tick && tick.delta) || 0;
+                message.delta = message.gameDelta * this.timeMultiplier;   
+                message.tick = tick;
+
+                /**
+                 * Triggered every tick on owner and its children entities.
+                 *
+                 * @event platypus.Entity#handle-render
+                 * @param data {Object}
+                 * @param data.delta {Number} The delta time for this tick as manipulated by the timeMultiplier.
+                 * @param data.gameDelta {Number} The delta time for this tick. Unmanipulated by the timeMultiplier. Use for components that should always run according to actual time.
+                 * @param data.container {PIXI.Container} The display Container the entities display objects should be added to.
+                 * @param data.tick {Object} Tick object from "tick" event.
+                 */
+                this.owner.triggerEvent('handle-render', message);
+
+                if (this.owner.triggerEventOnChildren) {
+                    this.owner.triggerEventOnChildren('handle-render', message);
+                }
+            },
+
+            setParentRenderContainer: function (entity, newContainer) {
+                let container = null;
+
+                entity.removeFromParentContainer();
+
+                if (!newContainer) {
+                    container = this.worldContainer;
+
+                } else if (typeof newContainer === "string") {
+
+                    const otherEntity = this.owner.getEntityById(newContainer);
+                    if (otherEntity) {
+                        container = otherEntity.container;
+                    } else {
+                        //Didn't find group.
+                        platypus.debug.warn("Trying to add to non-existent entity, added to World container instead.");
+                        container = this.worldContainer;
+                    }
+                } else if (newContainer instanceof Container) {
+                    container = newContainer;
+                } else {
+                    container = newContainer.container;
+                }
+
+                entity.addToParentContainer(container);
+
+            },
             destroy: function () {
                 this.worldContainer = null;
-                this.renderGroups.recycle();
-                this.renderGroups = null;
                 this.renderMessage.recycle();
+                this.renderMessage = null;
             }
         }
     });

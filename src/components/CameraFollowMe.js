@@ -1,17 +1,8 @@
-/**
- * This component can request that the camera focus on this entity.
- *
- * @namespace platypus.components
- * @class CameraFollowMe
- * @uses platypus.Component
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var Data = include('platypus.Data');
+import Data from '../Data.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.CameraFollowMe.prototype */{
         id: 'CameraFollowMe',
         
         properties: {
@@ -69,6 +60,17 @@
             pause: false
         },
         
+        /**
+         * This component can request that the camera focus on this entity.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#follow-me
+         * @fires platypus.Entity#follow
+         * @fires platypus.Entity#pause-logic
+         * @fires platypus.Entity#pause-render
+         */
         initialize: function () {
             this.pauseGame = (this.pause && this.camera.time) ? {
                 time: this.camera.time
@@ -91,16 +93,16 @@
             /**
              * On receiving this message, the component will trigger a message requesting that the parent camera begin following this entity.
              *
-             * @method 'follow-me'
-             * @param [options] {Object} A list of key/value paris describing camera options to set.
-             * @param [options.mode] {String} Camera following mode.
-             * @param [options.top] {number} The top of a bounding box.
-             * @param [options.left] {number} The left of a bounding box.
-             * @param [options.width] {number} The width of a bounding box.
-             * @param [options.height] {number} The height of a bounding box.
-             * @param [options.offsetX] {number} How far to offset the camera from the entity horizontally.
-             * @param [options.offsetY] {number} How far to offset the camera from the entity vertically.
-             * @param [options.time] {number} How many milliseconds to follow the entity.
+             * @event platypus.Entity#follow-me
+             * @param {Object} [options] A list of key/value paris describing camera options to set.
+             * @param {String} [options.mode] Camera following mode.
+             * @param {number} [options.top] The top of a bounding box.
+             * @param {number} [options.left] The left of a bounding box.
+             * @param {number} [options.width] The width of a bounding box.
+             * @param {number} [options.height] The height of a bounding box.
+             * @param {number} [options.offsetX] How far to offset the camera from the entity horizontally.
+             * @param {number} [options.offsetY] How far to offset the camera from the entity vertically.
+             * @param {number} [options.time] How many milliseconds to follow the entity.
              */
             "follow-me": function (options) {
                 var msg = null;
@@ -126,7 +128,7 @@
                     /**
                      * This component fires this message on the parent entity to pause logic if required.
                      *
-                     * @event 'pause-logic'
+                     * @event platypus.Entity#pause-logic
                      * @param options {Object}
                      * @param options.time {number} The amount of time to pause before re-enabling logic.
                      */
@@ -135,7 +137,7 @@
                     /**
                      * This component fires this message on the parent entity to pause rendering if required.
                      *
-                     * @event 'pause-render'
+                     * @event platypus.Entity#pause-render
                      * @param options {Object}
                      * @param options.time {number} The amount of time to pause before re-enabling render updates.
                      */
@@ -145,17 +147,19 @@
                 /**
                  * This component fires this message on this entity's parent so the camera will begin following this entity.
                  *
-                 * @event 'follow'
-                 * @param options {Object} A list of key/value pairs describing camera options to set.
-                 * @param options.entity {platypus.Entity} Sends this entity for the camera to follow.
-                 * @param options.mode {String} Camera following mode.
-                 * @param options.top {number} The top of a bounding box.
-                 * @param options.left {number} The left of a bounding box.
-                 * @param options.width {number} The width of a bounding box.
-                 * @param options.height {number} The height of a bounding box.
-                 * @param options.offsetX {number} How far to offset the camera from the entity horizontally.
-                 * @param options.offsetY {number} How far to offset the camera from the entity vertically.
-                 * @param options.time {number} How many milliseconds to follow the entity.
+                 * @event platypus.Entity#follow
+                 * @param {Object} message
+                 * @param {String} message.mode Can be "locked", "forward", "bounding", "anchor-bound", or "static". "static" suspends following, but the other three settings require that the entity parameter be defined. Also set the bounding area parameters if sending "bounding" as the following method and the movement parameters if sending "forward" as the following method.
+                 * @param {platypus.Entity} [message.entity] The entity that the camera should commence following.
+                 * @param {number} [message.top] The top of a bounding box following an entity.
+                 * @param {number} [message.left] The left of a bounding box following an entity.
+                 * @param {number} [message.width] The width of a bounding box following an entity.
+                 * @param {number} [message.height] The height of a bounding box following an entity.
+                 * @param {number} [message.movementX] Movement multiplier for focusing the camera ahead of a moving entity in the horizontal direction.
+                 * @param {number} [message.movementY] Movement multiplier for focusing the camera ahead of a moving entity in the vertical direction.
+                 * @param {number} [message.offsetX] How far to offset the camera from the entity horizontally.
+                 * @param {number} [message.offsetY] How far to offset the camera from the entity vertically.
+                 * @param {number} [message.time] How many milliseconds to follow the entity.
                  */
                 this.owner.parent.triggerEvent('follow', msg);
                 

@@ -1,24 +1,5 @@
 /**
-# COMPONENT **LogicTeleportee**
-This component causes an entity to teleport when receiving a teleport message.
-
-## Dependencies:
-- [[CollisionBasic]] (on entity) - This component triggers "relocate-entity" to perform teleport, for which "CollisionBasic" listens.
-- [[HandlerLogic]] (on entity's parent) - This component listens for a logic tick message to maintain and update its location.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - On a `tick` logic message, the component updates its location according to its current state.
-- **teleport** - Teleports the entity to its set destination.
-- **set-destination** - Sets the destination to teleport to in world coordinates.
-  - @param message.x, message.y (number) - The position in world coordinates to set the teleport destination to.
-- **hit-telepoint** - Sets the destination to the colliding entity's coordinates: useful for checkpoint behavior.
-  - @param message ([[Entity]]) - The entity whose coordinates will be the teleport destination.
-
 ### Local Broadcasts:
-- **relocate-entity** - Broadcasts the new location for the entity.
-  - @param message.x, message.y (number) - The position in world coordinates to set the teleport destination to.
 - **teleport-complete** - Triggered once the entity has been moved to the new location.
 
 ## JSON Definition
@@ -26,15 +7,23 @@ This component causes an entity to teleport when receiving a teleport message.
       "type": "LogicTeleportee"
     }
 */
-/* global include, platypus */
-(function () {
-    'use strict';
-    
-    var Vector = include('platypus.Vector');
+import Vector from '../Vector.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicTeleportee.prototype */{
         id: 'LogicTeleportee',
         
+        /**
+         * This component causes an entity to teleport when receiving a teleport message.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#handle-logic
+         * @fires platypus.Entity#relocate-entity
+         */
         initialize: function () {
             this.teleportDestination = Vector.setUp();
             this.teleportNow = false;
