@@ -517,7 +517,12 @@ platypus.Vector = (function () {
             ang = 0;
         
         if (v3.magnitude() === 0) {
-            ang = 0;
+            if (v1.x === v2.x && v1.y === v2.y && v1.z === v2.z) {
+                ang = 0;
+            } else {
+                ang = Math.PI; //In this case, the vectors are pointing in opposite directions.
+            }
+            
         } else if (v3.dot(normal) < 0) {
             ang = -Math.acos(v1.dot(v2));
         } else {
