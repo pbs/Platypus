@@ -1,24 +1,28 @@
-/**
- * This class defines a multi-dimensional vector object and a variety of methods for manipulating the vector.
- *
- * @namespace platypus
- * @class Vector
- * @constructor
- * @param x {number|Array|Vector} The x coordinate or an array or Vector describing the whole vector.
- * @param [y] {number} The y coordinate.
- * @param [z] {number} The z coordinate.
- */
-/*global platypus, recycle, springroll */
-platypus.Vector = (function () {
-    'use strict';
-    
+/* global platypus */
+import {arrayCache, greenSlice} from './utils/array.js';
+import config from 'config';
+import recycle from 'recycle';
+
+export default (function () {
+    /**
+     * This class defines a multi-dimensional vector object and a variety of methods for manipulating the vector.
+     *
+     * @memberof platypus
+     * @class Vector
+     * @param {number|Array|Vector} x The x coordinate or an array or Vector describing the whole vector.
+     * @param {number} [y] The y coordinate.
+     * @param {number} [z] The z coordinate.
+     * @property {number} x The x coordinate.
+     * @property {number} [y] The y coordinate.
+     * @property {number} [z] The z coordinate.
+     */
     var Vector = function (x, y, z) {
             if (this.matrix) { // Recycled vectors will already have a matrix array. Resetting x, y, z to 0's to properly handle a set-up array of less than 3 dimensions.
                 this.matrix[0] = 0;
                 this.matrix[1] = 0;
                 this.matrix[2] = 0;
             } else {
-                this.matrix = Array.setUp(0, 0, 0);
+                this.matrix = arrayCache.setUp(0, 0, 0);
             }
             this.set(x, y, z);
         },
@@ -27,7 +31,8 @@ platypus.Vector = (function () {
     /**
      * The x component of the vector.
      *
-     * @property x
+     * @memberof platypus.Vector.prototype
+     * @member x
      * @type number
      * @default 0
      */
@@ -43,7 +48,8 @@ platypus.Vector = (function () {
     /**
      * The y component of the vector.
      *
-     * @property y
+     * @memberof platypus.Vector.prototype
+     * @member y
      * @type number
      * @default 0
      */
@@ -59,7 +65,8 @@ platypus.Vector = (function () {
     /**
      * The z component of the vector.
      *
-     * @property z
+     * @memberof platypus.Vector.prototype
+     * @member z
      * @type number
      * @default 0
      */
@@ -75,7 +82,7 @@ platypus.Vector = (function () {
     /**
      * Returns a string describing the vector in the format of "[x, y, z]".
      *
-     * @method toString
+     * @method platypus.Vector#toString
      * @return {String}
      */
     proto.toString = function () {
@@ -85,7 +92,7 @@ platypus.Vector = (function () {
     /**
      * Sets the coordinates of the vector.
      *
-     * @method set
+     * @method platypus.Vector#set
      * @param x {number|Array|Vector} The x coordinate or an array or Vector describing the whole vector.
      * @param [y] {number} The y coordinate, or if x is an array/Vector this is the number of elements to copy from the array/Vector.
      * @param [z] {number} The z coordinate.
@@ -106,12 +113,11 @@ platypus.Vector = (function () {
     /**
      * Sets the coordinates of the vector.
      *
-     * @method setXYZ
+     * @method platypus.Vector#setXYZ
      * @param x {number} The x coordinate.
      * @param [y] {number} The y coordinate.
      * @param [z] {number} The z coordinate.
      * @chainable
-     * @since 0.7.4
      */
     proto.setXYZ = function (x, y, z) {
         var matrix = this.matrix;
@@ -126,11 +132,10 @@ platypus.Vector = (function () {
     /**
      * Sets the coordinates of the vector.
      *
-     * @method setVector
+     * @method platypus.Vector#setVector
      * @param vector {Vector} The Vector to copy.
      * @param [dimensions] {number} The number of elements to copy from the Vector.
      * @chainable
-     * @since 0.7.4
      */
     proto.setVector = function (vector, dimensions) {
         return this.setArray(vector.matrix, dimensions);
@@ -139,11 +144,10 @@ platypus.Vector = (function () {
     /**
      * Sets the coordinates of the vector.
      *
-     * @method setArray
+     * @method platypus.Vector#setArray
      * @param arr {Array} The array to copy.
      * @param [dimensions] {number} The number of elements to copy from the Array.
      * @chainable
-     * @since 0.7.4
      */
     proto.setArray = function (arr, dimensions) {
         var q = dimensions || arr.length,
@@ -159,12 +163,11 @@ platypus.Vector = (function () {
     /**
      * Determines whether two vectors are equal.
      *
-     * @method equals
+     * @method platypus.Vector#equals
      * @param x {number|Array|Vector} The x coordinate or an array or Vector to check against.
      * @param [y] {number} The y coordinate, or if x is an array/Vector this is the number of dimensions to check from the array/Vector.
      * @param [z] {number} The z coordinate.
      * @return {Boolean} Whether the vectors are equal.
-     * @since 0.7.3
      */
     proto.equals = function (x, y, z) {
         var m = null,
@@ -196,11 +199,22 @@ platypus.Vector = (function () {
     /**
      * Returns the magnitude of the vector.
      *
-     * @method magnitude
+     * @method platypus.Vector#magnitude
      * @param [dimensions] {number} The dimensions to include. Defaults to all dimensions.
      * @return {number} The magnitude of the vector.
      */
     proto.magnitude = function (dimensions) {
+        return Math.sqrt(this.magnitudeSquared(dimensions));
+    };
+    
+    /**
+     * Returns the magnitude squared of the vector. This is slightly faster than finding the magnitude.
+     *
+     * @method platypus.Vector#magnitudeSquared
+     * @param [dimensions] {number} The dimensions to include. Defaults to all dimensions.
+     * @return {number} The magnitude squared of the vector.
+     */
+    proto.magnitudeSquared = function (dimensions) {
         var squares = 0,
             x = 0;
 
@@ -210,12 +224,13 @@ platypus.Vector = (function () {
             squares += Math.pow(this.matrix[x], 2);
         }
 
-        return Math.sqrt(squares);
+        return squares;
     };
     
     /**
      * Returns the direction of the vector from the z-axis
      *
+     * @method platypus.Vector#getAngle
      * @return {number} The direction of the vector in radians.
      */
     proto.getAngle = function () {
@@ -234,27 +249,27 @@ platypus.Vector = (function () {
     /**
      * Returns a normalized copy of the vector.
      *
-     * @method getUnit
+     * @method platypus.Vector#getUnit
      * @return {platypus.Vector} A normalized vector in the same direction as this vector.
      */
     proto.getUnit = function () {
-        return platypus.Vector.setUp(this).normalize();
+        return Vector.setUp(this).normalize();
     };
     
     /**
      * Returns a copy of the Vector inverted.
      *
-     * @method getInverse
+     * @method platypus.Vector#getInverse
      * @return {platypus.Vector}
      */
     proto.getInverse = function () {
-        return platypus.Vector.setUp(this).multiply(-1);
+        return Vector.setUp(this).multiply(-1);
     };
     
     /**
      * Normalizes the vector.
      *
-     * @method normalize
+     * @method platypus.Vector#normalize
      * @chainable
      */
     proto.normalize = function () {
@@ -271,7 +286,7 @@ platypus.Vector = (function () {
     /**
      * Crosses this vector with the parameter vector.
      *
-     * @method cross
+     * @method platypus.Vector#cross
      * @param vector {platypus.Vector} The vector to cross this vector with.
      * @chainable
      */
@@ -296,18 +311,18 @@ platypus.Vector = (function () {
     /**
      * Crosses this vector with the parameter vector and returns the cross product.
      *
-     * @method getCrossProduct
+     * @method platypus.Vector#getCrossProduct
      * @param vector {platypus.Vector} The vector to cross this vector with.
      * @return {platypus.Vector} The cross product.
      */
     proto.getCrossProduct = function (v) {
-        return platypus.Vector.setUp(this).cross(v);
+        return Vector.setUp(this).cross(v);
     };
     
     /**
      * Rotates the vector by the given amount.
      *
-     * @method rotate
+     * @method platypus.Vector#rotate
      * @param angle {number} The amount to rotate the vector in radians.
      * @param [axis="z"] {String|Vector} A vector describing the axis around which the rotation should occur or 'x', 'y', or 'z'.
      * @chainable
@@ -321,7 +336,7 @@ platypus.Vector = (function () {
             x    = 0,
             y    = 0,
             z    = 0,
-            temp = platypus.Vector.setUp();
+            temp = Vector.setUp();
         
         if (a) {
             if (a === 'x') {
@@ -339,48 +354,72 @@ platypus.Vector = (function () {
         y     = a.y;
         z     = a.z;
         
-        arr = Array.setUp(
-            Array.setUp(    cos + x * x * icos, x * y * icos - z * sin, x * z * icos + y * sin),
-            Array.setUp(y * x * icos + z * sin,     cos + y * y * icos, y * z * icos - x * sin),
-            Array.setUp(z * x * icos - y * sin, z * y * icos + x * sin,     cos + z * z * icos)
+        arr = arrayCache.setUp(
+            arrayCache.setUp(    cos + x * x * icos, x * y * icos - z * sin, x * z * icos + y * sin),
+            arrayCache.setUp(y * x * icos + z * sin,     cos + y * y * icos, y * z * icos - x * sin),
+            arrayCache.setUp(z * x * icos - y * sin, z * y * icos + x * sin,     cos + z * z * icos)
         );
         
         this.multiply(arr);
-        
+
         temp.recycle();
-        arr.recycle(2);
+        arrayCache.recycle(arr, 2);
         
+        return this;
+    };
+
+    /**
+     * Rotates the vector position around a given point on the cartesian plane.
+     *
+     * @method platypus.Vector#rotateAbout
+     * @param point {Vector} A vector describing the point around which the rotation should occur.
+     * @param angle {number} The amount to rotate the vector in radians.
+     * @chainable
+     */
+    proto.rotateAbout = function (point, angle) {
+        const cos = Math.cos(angle),
+            sin = Math.sin(angle),
+            dx = this.x - point.x,
+            dy = this.y - point.y;
+
+        this.x = point.x + (dx * cos - dy * sin);
+        this.y = point.y + (dx * sin + dy * cos);
+
         return this;
     };
     
     /**
      * Scales the vector by the given factor or performs a transform if a matrix is provided.
      *
-     * @method multiply
+     * @method platypus.Vector#multiply
      * @param multiplier {number|Array} The factor to scale by or a 2D array describing a multiplication matrix.
      * @param limit {number} For scaling, determines which coordinates are affected.
      * @chainable
      */
     proto.multiply = function (multiplier, limit) {
-        var i = 0,
-            j = 0,
-            arr = null,
-            l = 0;
+        const
+            matrix = this.matrix;
         
         if (Array.isArray(multiplier)) {
-            arr = this.matrix.greenSlice();
-            l = limit || multiplier.length;
-            for (i = 0; i < l; i++) {
-                this.matrix[i] = 0;
-                for (j = 0; j < l; j++) {
-                    this.matrix[i] += arr[j] * multiplier[i][j];
-                }
+            const
+                arr = greenSlice(matrix);
+
+            if (multiplier.length === 2) {
+                matrix[0] = arr[0] * multiplier[0][0] + arr[1] * multiplier[0][1];
+                matrix[1] = arr[0] * multiplier[1][0] + arr[1] * multiplier[1][1];
+            } else if (multiplier.length >= 3) {
+                matrix[0] = arr[0] * multiplier[0][0] + arr[1] * multiplier[0][1] + arr[2] * multiplier[0][2];
+                matrix[1] = arr[0] * multiplier[1][0] + arr[1] * multiplier[1][1] + arr[2] * multiplier[1][2];
+                matrix[2] = arr[0] * multiplier[2][0] + arr[1] * multiplier[2][1] + arr[2] * multiplier[2][2];
             }
-            arr.recycle();
+
+            arrayCache.recycle(arr);
         } else {
-            l = limit || this.matrix.length;
-            for (i = 0; i < l; i++) {
-                this.matrix[i] *= multiplier;
+            const
+                l = limit || matrix.length;
+
+            for (let i = 0; i < l; i++) {
+                matrix[i] *= multiplier;
             }
         }
         
@@ -390,7 +429,7 @@ platypus.Vector = (function () {
     /**
      * Adds the given components to this vector.
      *
-     * @method add
+     * @method platypus.Vector#add
      * @param x {number|Array|Vector} The x component to add, or an array or vector describing the whole addition.
      * @param [y] {number} The y component to add or the limit if the first parameter is a vector or array.
      * @param [z] {number} The z component to add.
@@ -423,7 +462,7 @@ platypus.Vector = (function () {
     /**
      * Adds the given vector to this vector.
      *
-     * @method addVector
+     * @method platypus.Vector#addVector
      * @param otherVector {platypus.Vector} The vector to add.
      * @chainable
      */
@@ -434,18 +473,46 @@ platypus.Vector = (function () {
     /**
      * Subtracts the given vector from this vector.
      *
-     * @method subtractVector
+     * @method platypus.Vector#subtractVector
      * @param otherVector {platypus.Vector} The vector to subtract.
      * @chainable
      */
     proto.subtractVector = function (otherVector, dimensions) {
-        return this.add(otherVector.getInverse(), dimensions);
+        var inv = otherVector.getInverse();
+
+        this.add(inv, dimensions);
+        inv.recycle();
+
+        return this;
+    };
+
+    /**
+     * Returns the perpendicular vector.
+     *
+     * @method platypus.Vector#perpendicular
+     * @param opposite {Boolean} Whether to negate the perpendicular vector.
+     * @chainable
+     */
+    proto.perpendicular = function (negate) {
+        const matrix = this.matrix,
+            mult = (negate === true) ? -1 : 1,
+            x = -this.matrix[1];
+
+        matrix[1] = matrix[0];
+        matrix[0] = x;
+
+        if (negate) {
+            matrix[1] *= mult;
+            matrix[0] *= mult;
+        }
+
+        return this;
     };
     
     /**
      * Scales the vector by the given factor.
      *
-     * @method multiply
+     * @method platypus.Vector#multiply
      * @param factor {number} The factor to scale by.
      * @param limit {number} Determines which coordinates are affected. Defaults to all coordinates.
      * @chainable
@@ -457,7 +524,7 @@ platypus.Vector = (function () {
     /**
      * Finds the dot product of the two vectors.
      *
-     * @method dot
+     * @method platypus.Vector#dot
      * @param otherVector {platypus.Vector} The other vector.
      * @param limit {number} The number of vector indexes to include in the dot product.
      * @return {number} The dot product.
@@ -480,7 +547,7 @@ platypus.Vector = (function () {
     /**
      * Finds the shortest angle between the two vectors.
      *
-     * @method angleTo
+     * @method platypus.Vector#angleTo
      * @param otherVector {platypus.Vector} The other vector.
      * @return {number} The angle between this vector and the received vector.
      */
@@ -505,7 +572,7 @@ platypus.Vector = (function () {
     /**
      * Finds the shortest signed angle between the two vectors.
      *
-     * @method signedAngleTo
+     * @method platypus.Vector#signedAngleTo
      * @param otherVector {platypus.Vector} The other vector.
      * @param normal {platypus.Vector} A normal vector determining the resultant sign of the angle between two vectors.
      * @return {number} The angle between this vector and the received vector.
@@ -539,7 +606,7 @@ platypus.Vector = (function () {
     /**
      * Find the scalar value of projecting this vector onto the parameter vector or onto a vector at the specified angle away.
      *
-     * @method scalerProjection
+     * @method platypus.Vector#scalerProjection
      * @param vectorOrAngle {Vector|number} The other vector or the angle between the vectors.
      * @return {number} The magnitude of the projection.
      */
@@ -560,17 +627,17 @@ platypus.Vector = (function () {
     /**
      * Returns a copy of this vector.
      *
-     * @method copy
+     * @method platypus.Vector#copy
      * @return {platypus.Vector} A copy of this vector.
      */
     proto.copy = function () {
-        return platypus.Vector.setUp(this);
+        return Vector.setUp(this);
     };
     
     /**
      * Adds properties to an object that describe the coordinates of a vector.
      *
-     * @method Vector.assign
+     * @method platypus.Vector.assign
      * @param object {Object} Object on which the coordinates and vector will be added.
      * @param propertyName {String} A string describing the property name where the vector is accessable.
      * @param [coordinateName*] {String} One or more parameters describing coordinate values on the object.
@@ -608,7 +675,7 @@ platypus.Vector = (function () {
 
             if (obj && prop) {
                 if (!obj[prop]) {
-                    obj[prop] = platypus.Vector.setUp();
+                    obj[prop] = Vector.setUp();
                     
                     for (i = 2; i < arguments.length; i++) {
                         if (arguments[i] !== prop) {
@@ -628,27 +695,23 @@ platypus.Vector = (function () {
     /**
      * Returns a Vector from cache or creates a new one if none are available.
      *
-     * @method Vector.setUp
+     * @method platypus.Vector.setUp
      * @return {platypus.Vector} The instantiated Vector.
-     * @since 0.7.1
      */
     /**
      * Returns a Vector back to the cache. Prefer the Vector's recycle method since it recycles property objects as well.
      *
-     * @method Vector.recycle
-     * @param {platypus.Vector} The Vector to be recycled.
-     * @since 0.7.1
+     * @method platypus.Vector.recycle
+     * @param {platypus.Vector} vector The Vector to be recycled.
      */
     /**
      * Relinquishes properties of the vector and recycles it.
      *
-     * @method recycle
-     * @since 0.7.1
+     * @method platypus.Vector#recycle
      */
-    recycle.add(Vector, !!springroll.Debug, 'Vector', function () {
+    recycle.add(Vector, 'Vector', Vector, function () {
         this.matrix.length = 0;
-        Vector.recycle(this);
-    });
+    }, true, config.dev);
     
     return Vector;
 }());

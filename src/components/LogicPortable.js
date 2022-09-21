@@ -1,15 +1,7 @@
-/**
- * This component allows this entity to be carried by other entities with which it collides. Entities that should carry this entity need to have a [[Logic-Carrier]] component attached.
- *
- * @namespace platypus.components
- * @class LogicPortable
- * @uses platypus.Component
- */
-/* global platypus */
-(function () {
-    'use strict';
-    
-    return platypus.createComponentClass({
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicPortable.prototype */{
         id: 'LogicPortable',
         properties: {
             /**
@@ -23,18 +15,27 @@
                 down: true //default is false, 'true' means as soon as carrier is connected downward
             }
         },
-        initialize: function (definition) {
+
+        /**
+         * This component allows this entity to be carried by other entities with which it collides. Entities that should carry this entity need to have a [[Logic-Carrier]] component attached.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#force-release
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#hit-solid
+         * @fires platypus.Entity#carry-me
+         * @fires platypus.Entity#release-me
+         */
+        initialize: function () {
             this.carrier = this.lastCarrier = null;
             this.message = {
                 entity: this.owner
             };
         },
+
         events: {
-            /**
-             * On receiving this message, this component triggers 'carry-me' or 'release-me' if its connection to a carrying entity has changed.
-             *
-             * @method 'handle-logic'
-             */
             "handle-logic": function () {
                 var msg = this.message;
                 
@@ -47,8 +48,8 @@
                         /**
                          * This message is triggered on a potential carrying peer, notifying the peer that this entity is portable.
                          *
-                         * @event 'carry-me'
-                         * @param message.entity {platypus.Entity} This entity, requesting to be carried.
+                         * @event platypus.Entity#carry-me
+                         * @param {platypus.Entity} message.entity This entity, requesting to be carried.
                          */
                         this.carrier.triggerEvent('carry-me', msg);
                     }
@@ -59,8 +60,8 @@
                     /**
                      * This message is triggered on the current carrier, notifying them to release this entity.
                      *
-                     * @event 'release-me'
-                     * @param message.entity {platypus.Entity} This entity, requesting to be released.
+                     * @event platypus.Entity#release-me
+                     * @param {platypus.Entity} message.entity This entity, requesting to be released.
                      */
                     this.carrier.triggerEvent('release-me', msg);
                     this.carrier = null;
@@ -68,14 +69,6 @@
                 this.lastCarrier = this.carrier;
             },
 
-            /**
-             * On receiving this message, this component determines whether it is hitting its carrier or another entity. If it is hitting a new carrier, it will broadcast 'carry-me' on the next game step.
-             *
-             * @method 'hit-solid'
-             * @param collisionInfo.entity {platypus.Entity} The entity with which the collision occurred.
-             * @param collisionInfo.x {Number} -1, 0, or 1 indicating on which side of this entity the collision occurred: left, neither, or right respectively.
-             * @param collisionInfo.y {Number} -1, 0, or 1 indicating on which side of this entity the collision occurred: top, neither, or bottom respectively.
-             */
             "hit-solid": function (collisionInfo) {
                 if (collisionInfo.y > 0) {
                     this.updateCarrier(collisionInfo.entity, 'down');
@@ -91,8 +84,7 @@
             /**
              * On receiving this message, this component immediately triggers 'release-me' on its owner's carrier.
              *
-             * @method 'force-release'
-             * @since 0.11.2
+             * @event platypus.Entity#force-release
              */
             "force-release": function () {
                 if (this.carrier) {

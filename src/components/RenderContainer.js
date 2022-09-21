@@ -1,23 +1,14 @@
-/**
- * This component is attached to entities that will appear in the game world. It creates a PIXI Container to contain all other display objects on the entity and keeps the container updates with the entity's location and other dynamic properties.
- *
- * @namespace platypus.components
- * @class RenderContainer
- * @uses platypus.Component
- * @since 0.11.0
- */
-/* global include, platypus */
-(function () {
-    'use strict';
-    
-    var AABB = include('platypus.AABB'),
-        CanvasRenderer = include('PIXI.CanvasRenderer'),
-        ColorMatrixFilter = include('PIXI.filters.ColorMatrixFilter'),
-        Container = include('PIXI.Container'),
-        Data = include('platypus.Data'),
-        Graphics = include('PIXI.Graphics'),
-        Interactive = include('platypus.components.Interactive'),
-        Matrix = include('PIXI.Matrix'),
+/* global platypus */
+import {Container, Graphics, Matrix, filters} from 'pixi.js';
+import AABB from '../AABB.js';
+import Data from '../Data.js';
+import Interactive from './Interactive.js';
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
+import {greenSplit} from '../utils/string.js';
+
+export default (function () {
+    var ColorMatrixFilter = filters.ColorMatrixFilter,
         pixiMatrix = new Matrix(),
         castValue = function (color) {
             if (color === null) {
@@ -28,21 +19,33 @@
             }
             return +color;
         },
+        magSqr = function (x, y) {
+            return x * x + y * y;
+        },
         processGraphics = (function () {
             var process = function (gfx, value) {
                 var i = 0,
                     paren  = value.indexOf('('),
                     func   = value.substring(0, paren),
-                    values = value.substring(paren + 1, value.indexOf(')'));
+                    values = value.substring(paren + 1, value.indexOf(')')),
+                    polyRay = false;
 
                 if (values.length) {
-                    values = values.greenSplit(',');
+                    if (values[0] === '[') {
+                        values = values.substring(1, values.length - 1);
+                        polyRay = true;
+                    }
+                    values = greenSplit(values, ',');
                     i = values.length;
                     while (i--) {
                         values[i] = +values[i];
                     }
-                    gfx[func].apply(gfx, values);
-                    values.recycle();
+                    if (polyRay) {
+                        gfx[func](values);
+                    } else {
+                        gfx[func].apply(gfx, values);
+                        arrayCache.recycle(values); // cannot recycle polygon above since it's used by the polygon shape.
+                    }
                 } else {
                     gfx[func]();
                 }
@@ -50,23 +53,23 @@
 
             return function (gfx, value) {
                 var i = 0,
-                    arr = value.greenSplit('.');
+                    arr = greenSplit(value, '.');
 
                 for (i = 0; i < arr.length; i++) {
                     process(gfx, arr[i]);
                 }
                 
-                arr.recycle();
+                arrayCache.recycle(arr);
             };
         }());
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.RenderContainer.prototype */{
         
         id: 'RenderContainer',
         
         properties: {
             /**
-             * Optional. A mask definition that determines where the image should clip. A string can also be used to create more complex shapes via the PIXI graphics API like: "mask": "r(10,20,40,40).dc(30,10,12)". Defaults to no mask or, if simply set to true, a rectangle using the entity's dimensions. Note that the mask is in world coordinates by default. To make the mask local to the entity's coordinates, set `localMask` to `true` in the RenderContainer properties.
+             * Optional. A mask definition that determines where the image should clip. A string can also be used to create more complex shapes via the PIXI graphics API like: "mask": "r(10,20,40,40).drawCircle(30,10,12)". Defaults to no mask or, if simply set to true, a rectangle using the entity's dimensions. Note that the mask is in world coordinates by default. To make the mask local to the entity's coordinates, set `localMask` to `true` in the RenderContainer properties.
              *
              *  "mask": {
              *      "x": 10,
@@ -77,7 +80,7 @@
              *
              *  -OR-
              *
-             *  "mask": "r(10,20,40,40).dc(30,10,12)"
+             *  "mask": "r(10,20,40,40).drawCircle(30,10,12)"
              *
              * @property mask
              * @type Object
@@ -101,18 +104,26 @@
              * @property interactive
              * @type Boolean|Object
              * @default false
-             * @since 0.9.0
              */
             interactive: false,
 
             /**
-             * Optional. Whether this object can be rotated. It's rotational angle is set by setting the this.owner.rotation value on the entity.
+             * Whether to render objects to their new position over time instead of instantaneously if there has been a time adjustment. Time is in milliseconds.
+             *
+             * @property interpolation
+             * @type Number
+             * @default 0
+             */
+            interpolation: 0,
+
+            /**
+             * Optional. What field this object should use to rotate.
              *
              * @property rotate
-             * @type Boolean
-             * @default false
+             * @type String
+             * @default 'rotation'
              */
-            rotate: false,
+            rotate: 'rotation',
 
             /**
              * Whether this object can be mirrored over X. To mirror it over X set the this.owner.rotation value to be > 90  and < 270.
@@ -176,22 +187,22 @@
              * @property dragMode
              * @type Boolean
              * @default false
-             * @since 0.8.3
              */
             dragMode: false,
 
             /**
-             * Determines the container this entity should use for rendering. Defaults to the top-most layer.
+             * The entity or id of the entity that will act as the parent container. If not set, the entity will be rendered in the layer's container.
              *
-             * @property renderGroup
-             * @type String
-             * @default ""
-             * @since 0.11.10
+             * @property renderParent
+             * @type String|Object
+             * @default null
              */
-            renderGroup: '',
+            renderParent: null,
 
             /**
-             * Optional. The rotation of the sprite in degrees. All sprites on the same entity are rotated the same amount unless they ignore the rotation value by setting 'rotate' to false.
+             * Optional. The rotation of the sprite in degrees. All sprites on the same entity are rotated the same amount unless they ignore the rotation value by setting 'rotate' to "".
+             *
+             * Boolean values for the "rotate" property has been deprecated. Use "rotation" or "orientationMatrix" to specify the source of rotation for the render container.
              *
              * @property rotation
              * @type Number
@@ -272,123 +283,129 @@
             z: 0
         },
         
+        /**
+         * This component is attached to entities that will appear in the game world. It creates a PIXI Container to contain all other display objects on the entity and keeps the container updates with the entity's location and other dynamic properties.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#cache
+         * @listens platypus.Entity#camera-update
+         * @listens platypus.Entity#handle-render
+         * @listens platypus.Entity#handle-render-load
+         * @listens platypus.Entity#hide-sprite
+         * @listens platypus.Entity#set-mask
+         * @listens platypus.Entity#show-sprite
+         * @fires platypus.Entity#cache-sprite
+         * @fires platypus.Entity#input-on
+         */
         initialize: function () {
-            var container = this.container = this.owner.container = new Container(),
-                definition = null,
+            const
+                owner = this.owner,
+                container = this.container = this.owner.container = new Container(),
                 initialTint = this.tint;
 
-            this.rootContainer = null;
+            container.sortableChildren = true;
+
+            if (this.rotate === true) {
+                this.rotate = 'rotation';
+                platypus.debug.warn('RenderContainer: Boolean values for the "rotate" property has been deprecated. Use "rotation", "orientationMatrix", or "" to specify the source of rotation for the render container. This property defaults to "rotation".');
+            }
+
             this.parentContainer = null;
-            this.renderGroups = null;
             this.wasVisible = this.visible;
-            this.lastX = this.owner.x;
-            this.lastY = this.owner.y;
+            this.lastX = owner.x;
+            this.lastY = owner.y;
             this.camera = AABB.setUp();
             this.isOnCamera = true;
             this.needsCameraCheck = true;
 
             this._tint = null;
 
-            // This should be simplified once PIXI supports a `tint` property on PIXI.Container: https://github.com/pixijs/pixi.js/issues/2328
-            if (platypus.game.app.display.renderer instanceof CanvasRenderer) {
-                Object.defineProperty(this.owner, 'tint', {
-                    get: function () {
-                        return this._tint;
-                    }.bind(this),
-                    set: function (value) {
-                        var children = this.container.children,
-                            i = children.length,
-                            color = castValue(value);
+            if (this.interpolation) { // handle interpolation if timeline changes.
+                const
+                    updateUsingOwnerXY = () => {
+                        this.updateSprite(true, this.owner.x, this.owner.y);
+                    },
+                    updateUsingInterpolationXY = () => {
+                        const
+                            owner = this.owner,
+                            interpolationDist = magSqr(this.lastX - owner.x, this.lastY - owner.y);
+    
+                        if (!interpolationTime || interpolationDist < 1.5) {
+                            interpolationTime = 0;
+                            update = updateUsingOwnerXY;
+                            update();
+                        } else {
+                            const
+                                ratio = Math.min((interpolationTime / interpolation), (lastInterpolationDistance / interpolationDist)),
+                                alt = 1 - ratio;
+                            
+                            interpolationTime = Math.max(0, interpolationTime - 5);
+                            fromX = this.lastX;
+                            fromY = this.lastY;
+                            lastInterpolationDistance = interpolationDist;
 
-                        if (color === this._tint) {
-                            return;
+                            this.updateSprite(true, owner.x * alt + fromX * ratio, owner.y * alt + fromY * ratio);
                         }
+                    },
+                    interpolation = this.interpolation;
+                let interpolationTime = 0,
+                    lastInterpolationDistance = 0,
+                    fromX = 0,
+                    fromY = 0,
+                    update = updateUsingOwnerXY;
 
-                        while (i--) {
-                            children[i].tint = color;
-                        }
-                        this._tint = color;
-                    }.bind(this)
+                this.addEventListener('handle-render', function (tick) {
+                    if (tick.tick.timeShift) {
+                        fromX = this.lastX;
+                        fromY = this.lastY;
+                        lastInterpolationDistance = magSqr(this.lastX - this.owner.x, this.lastY - this.owner.y);
+                        interpolationTime = lastInterpolationDistance > 1.5 ? interpolation : 0;
+                        update = updateUsingInterpolationXY;
+                    } else {
+                        update();
+                    }
                 });
             } else {
-                Object.defineProperty(this.owner, 'tint', {
-                    get: function () {
-                        return this._tint;
-                    }.bind(this),
-                    set: function (value) {
-                        var filters = this.container.filters,
-                            matrix = null,
-                            color = castValue(value);
-
-                        if (color === this._tint) {
-                            return;
-                        }
-
-                        if (color === null) {
-                            if (filters) {
-                                this.container.filters = null;
-                            }
-                        } else {
-                            if (!filters) {
-                                filters = this.container.filters = Array.setUp(new ColorMatrixFilter());
-                            }
-                            matrix = filters[0].matrix;
-                            matrix[0] = (color & 0xff0000) / 0xff0000; // Red
-                            matrix[6] = (color & 0xff00) / 0xff00; // Green
-                            matrix[12] = (color & 0xff) / 0xff; // Blue
-                        }
-
-                        this._tint = color;
-                    }.bind(this)
+                this.addEventListener('handle-render', function () {
+                    this.updateSprite(true, this.owner.x, this.owner.y);
                 });
             }
+            this.interpolate = Data.setUp(
+                'x', 0,
+                'y', 0
+            );
+            this.interpolationTime = 0;
 
-            this.storedRenderGroup = this.renderGroup;
-            this._renderGroup = null;
-            Object.defineProperty(this.owner, 'renderGroup', {
+            Object.defineProperty(owner, 'tint', {
                 get: function () {
-                    return this._renderGroup;
+                    return this._tint;
                 }.bind(this),
                 set: function (value) {
-                    var groups = this.renderGroups,
-                        i = groups.length,
-                        container = null,
-                        mask = null;
+                    var filters = this.container.filters,
+                        matrix = null,
+                        color = castValue(value);
 
-                    if (value === this._renderGroup) {
+                    if (color === this._tint) {
                         return;
                     }
 
-                    this._renderGroup = value;
-
-                    if (this.mask) {
-                        mask = this.mask;
-                        this.setMask();
-                    }
-
-                    while (i--) {
-                        if (groups[i].name === value) {
-                            this.parentContainer = groups[i];
-                            groups[i].addChild(this.container);
-                            groups[i].reorder = true;
-                            if (mask) {
-                                this.setMask(mask);
-                            }
-                            return;
+                    if (color === null) {
+                        if (filters) {
+                            this.container.filters = null;
                         }
+                    } else {
+                        if (!filters) {
+                            filters = this.container.filters = arrayCache.setUp(new ColorMatrixFilter());
+                        }
+                        matrix = filters[0].matrix;
+                        matrix[0] = (color & 0xff0000) / 0xff0000; // Red
+                        matrix[6] = (color & 0xff00) / 0xff00; // Green
+                        matrix[12] = (color & 0xff) / 0xff; // Blue
                     }
 
-                    container = new Container();
-                    container.name = value;
-                    container.z = this.owner.z;
-                    groups.push(container);
-                    this.rootContainer.addChild(container);
-                    this.rootContainer.reorder = true;
-                    this.parentContainer = container;
-                    container.addChild(this.container);
-                    if (mask) {
-                        this.setMask(mask);
-                    }
+                    this._tint = color;
                 }.bind(this)
             });
         
@@ -397,18 +414,23 @@
             }
 
             if (this.interactive) {
-                definition = Data.setUp(
-                    'container', container,
-                    'hitArea', this.interactive.hitArea,
-                    'hover', this.interactive.hover
-                );
-                this.owner.addComponent(new Interactive(this.owner, definition));
+                const
+                    definition = Data.setUp(
+                        'container', container,
+                        'hitArea', this.interactive.hitArea,
+                        'hover', this.interactive.hover
+                    );
+                owner.addComponent(new Interactive(owner, definition));
                 definition.recycle();
             }
 
             if (this.cache) {
-                this.updateSprite(false);
+                this.updateSprite(false, owner.x, owner.y);
                 this.owner.cacheRender = this.container;
+            }
+
+            if (this.mask && this.localMask) {
+                this.setMask(this.mask);
             }
         },
         
@@ -416,31 +438,27 @@
             /**
              * On receiving a "cache" event, this component triggers "cache-sprite" to cache its rendering into the background. This is an optimization for static images to reduce render calls.
              *
-             * @method 'cache'
+             * @event platypus.Entity#cache
              */
             "cache": function () {
-                this.updateSprite(false);
-                this.owner.cacheRender = this.container;
+                const owner = this.owner;
+
+                this.updateSprite(false, owner.x, owner.y);
+                owner.cacheRender = this.container;
                 this.cache = true;
-                if (this.owner.parent.triggerEventOnChildren) {
+                if (owner.parent.triggerEventOnChildren) {
                     /**
                      * On receiving a "cache" event, this component triggers "cache-sprite" to cache its rendering into the background. This is an optimization for static images to reduce render calls.
                      *
-                     * @event 'cache-sprite'
+                     * @event platypus.Entity#cache-sprite
                      * @param entity {platypus.Entity} This component's owner.
                      */
-                    this.owner.parent.triggerEventOnChildren('cache-sprite', this.owner);
+                    owner.parent.triggerEventOnChildren('cache-sprite', owner);
                 } else {
-                    platypus.debug.warn('Unable to cache sprite for ' + this.owner.type);
+                    platypus.debug.warn('Unable to cache sprite for ' + owner.type);
                 }
             },
 
-            /**
-             * Listens for this event to determine whether this sprite is visible.
-             *
-             * @method 'camera-update'
-             * @param camera.viewport {platypus.AABB} Camera position and size.
-             */
             "camera-update": function (camera) {
                 this.camera.set(camera.viewport);
                 
@@ -448,41 +466,17 @@
                 this.needsCameraCheck = true;
             },
             
-            /**
-             * A setup message used to add the sprite to the stage. On receiving this message, the component sets its parent container to the stage contained in the message if it doesn't already have one.
-             *
-             * @method 'handle-render-load'
-             * @param handlerData {Object} Data from the render handler
-             * @param handlerData.container {PIXI.Container} The parent container.
-             */
-            "handle-render-load": function (handlerData) {
-                if (!this.rootContainer && handlerData && handlerData.container) {
-                    this.addStage(handlerData.container, handlerData.renderGroups);
-                    this.updateSprite(true); // Initial set up in case position, etc is needed prior to the first "render" event.
-                }
-            },
-            
-            /**
-             * The render update message updates the sprite. If a sprite doesn't have a container, it's removed.
-             *
-             * @method 'handle-render'
-             * @param renderData {Object} Data from the render handler
-             * @param renderData.container {PIXI.Container} The parent container.
-             */
-            "handle-render": function (renderData) {
-                if (!this.container) { // If this component's removal is pending
-                    return;
-                } else if (!this.rootContainer && renderData && renderData.container) {
-                    this.addStage(renderData.container, renderData.renderGroups);
-                }
+            "handle-render-load": function () {
+                const owner = this.owner;
 
-                this.updateSprite(true);
+                owner.triggerEvent('input-on');
+                this.updateSprite(true, owner.x, owner.y);
             },
             
             /**
              * This event makes the sprite invisible.
              *
-             * @method 'hide-sprite'
+             * @event platypus.Entity#hide-sprite
              */
             "hide-sprite": function () {
                 this.visible = false;
@@ -491,7 +485,7 @@
             /**
              * This event makes the sprite visible.
              *
-             * @method 'show-sprite'
+             * @event platypus.Entity#show-sprite
              */
             "show-sprite": function () {
                 this.visible = true;
@@ -500,7 +494,7 @@
             /**
              * Defines the mask on the container/sprite. If no mask is specified, the mask is set to null.
              *
-             * @method 'set-mask'
+             * @event platypus.Entity#set-mask
              * @param mask {Object} The mask. This can specified the same way as the 'mask' parameter on the component.
              */
             "set-mask": function (mask) {
@@ -509,105 +503,75 @@
         },
         
         methods: {
-            addStage: function (stage, renderGroups) {
-                if (stage) {
-                    this.rootContainer = stage;
-                    this.renderGroups = renderGroups;
-                    this.renderGroup = this.storedRenderGroup;
-
-                    //Handle mask
-                    if (this.mask) {
-                        this.setMask(this.mask);
-                    }
-
-                    /**
-                     * This event is triggered once the RenderSprite is ready to handle interactivity.
-                     *
-                     * @event 'input-on'
-                     */
-                    this.owner.triggerEvent('input-on');
-                    return stage;
-                } else {
-                    return null;
-                }
-            },
-            
-            updateSprite: (function () {
-                var sort = function (a, b) {
-                    return a.z - b.z;
-                };
+            updateSprite: function (uncached, x, y) {
+                const
+                    matrix = pixiMatrix,
+                    rotation = (this.rotate === 'rotation') && this.rotation || 0;
+                let mirrored = 1,
+                    flipped  = 1;
                 
-                return function (uncached) {
-                    var x = 0,
-                        y = 0,
-                        o = this.owner.orientationMatrix,
-                        rotation = 0,
-                        matrix = pixiMatrix,
-                        mirrored = 1,
-                        flipped  = 1,
-                        angle    = null;
-                    
-                    x = this.owner.x;
-                    y = this.owner.y;
-                    if (this.rotate) {
-                        rotation = this.rotation;
-                    }
-                    if (this.container.z !== this.owner.z) {
-                        if (this.parentContainer) {
-                            this.parentContainer.reorder = true;
-                        }
-                        this.container.z = this.owner.z;
-                    }
+                if (this.container.zIndex !== this.owner.z) {
+                    this.container.zIndex = this.owner.z;
+                }
 
-                    if (!this.ignoreOpacity && (this.owner.opacity || (this.owner.opacity === 0))) {
-                        this.container.alpha = this.owner.opacity;
+                if (!this.ignoreOpacity && (this.owner.opacity || (this.owner.opacity === 0))) {
+                    this.container.alpha = this.owner.opacity;
+                }
+                
+                if (this.mirror || this.flip) {
+                    const angle = this.rotation % 360;
+                    
+                    if (this.mirror && (angle > 90) && (angle < 270)) {
+                        mirrored = -1;
                     }
                     
-                    if (this.container.reorder) {
-                        this.container.reorder = false;
-                        this.container.children.sort(sort);
-                        this.needsCameraCheck = true; // reorder is set when adding children, so force another camera check.
+                    if (this.flip && (angle < 180)) {
+                        flipped = -1;
                     }
-                    
-                    if (this.mirror || this.flip) {
-                        angle = this.rotation % 360;
-                        
-                        if (this.mirror && (angle > 90) && (angle < 270)) {
-                            mirrored = -1;
-                        }
-                        
-                        if (this.flip && (angle < 180)) {
-                            flipped = -1;
-                        }
+                }
+                
+                if (this.rotate === 'orientationMatrix') { // This is a 3x3 2D matrix describing an affine transformation.
+                    const o = this.owner.orientationMatrix;
+
+                    matrix.a = o[0][0];
+                    matrix.b = o[1][0];
+                    matrix.tx = x + o[0][2];
+                    matrix.c = o[0][1];
+                    matrix.d = o[1][1];
+                    matrix.ty = y + o[1][2];
+                    this.container.transform.setFromMatrix(matrix);
+                } else {
+                    this.container.setTransform(x, y, this.scaleX * mirrored, this.scaleY * flipped, (rotation ? (rotation / 180) * Math.PI : 0), this.skewX, this.skewY);
+                }
+                
+                if (this.parentContainer && this.parentContainer.parentUpdated) {
+                    this.needsCameraCheck = true;
+                }
+                if (this.container) {
+                    if (this.container.childUpdated) {
+                        this.needsCameraCheck = true;
+                        this.container.childUpdated = false;
                     }
-                    
-                    if (o) { // This is a 3x3 2D matrix describing an affine transformation.
-                        matrix.a = o[0][0];
-                        matrix.b = o[1][0];
-                        matrix.tx = x + o[0][2];
-                        matrix.c = o[0][1];
-                        matrix.d = o[1][1];
-                        matrix.ty = y + o[1][2];
-                        this.container.transform.setFromMatrix(matrix);
-                    } else {
-                        this.container.setTransform(x, y, this.scaleX * mirrored, this.scaleY * flipped, (rotation ? (rotation / 180) * Math.PI : 0), this.skewX, this.skewY);
+                    this.container.parentUpdated = false;
+                }
+                // Set isCameraOn of sprite if within camera bounds
+                if (!this.needsCameraCheck) {
+                    this.needsCameraCheck = (this.lastX !== this.owner.x) || (this.lastY !== this.owner.y);
+                }
+                if (uncached && this.container && (this.needsCameraCheck || (!this.wasVisible && this.visible))) {
+                    this.isOnCamera = this.owner.parent.isOnCanvas(this.container.getBounds(false));
+                    this.needsCameraCheck = false;
+                    if (this.parentContainer) {
+                        this.parentContainer.childUpdated = true;
                     }
-                    
-                    // Set isCameraOn of sprite if within camera bounds
-                    if (!this.needsCameraCheck) {
-                        this.needsCameraCheck = (this.lastX !== this.owner.x) || (this.lastY !== this.owner.y);
-                    }
-                    if (uncached && this.container && (this.needsCameraCheck || (!this.wasVisible && this.visible))) {
-                        this.isOnCamera = this.owner.parent.isOnCanvas(this.container.getBounds(false));
-                        this.needsCameraCheck = false;
-                    }
-                    
-                    this.lastX = this.owner.x;
-                    this.lastY = this.owner.y;
-                    this.wasVisible = this.visible;
-                    this.container.visible = (this.visible && this.isOnCamera) || this.dragMode;
-                };
-            }()),
+                    this.container.parentUpdated = true;
+                }
+                
+                this.lastX = x;
+                this.lastY = y;
+                this.wasVisible = this.visible;
+                this.container.visible = (this.visible && this.isOnCamera) || this.dragMode;
+            },
             
             setMask: function (shape) {
                 var gfx = null;
@@ -625,7 +589,7 @@
                     return;
                 }
                 
-                if (shape instanceof Graphics) {
+                if (shape.isMask || (shape instanceof Graphics)) {
                     gfx = shape;
                 } else {
                     gfx = new Graphics();
@@ -633,9 +597,11 @@
                     if (typeof shape === 'string') {
                         processGraphics(gfx, shape);
                     } else if (shape.radius) {
-                        gfx.dc(shape.x || 0, shape.y || 0, shape.radius);
+                        gfx.drawCircle(shape.x || 0, shape.y || 0, shape.radius);
+                    } else if (shape instanceof AABB) {
+                        gfx.drawRect(shape.left, shape.top, shape.width, shape.height);
                     } else if (shape.width && shape.height) {
-                        gfx.r(shape.x || 0, shape.y || 0, shape.width, shape.height);
+                        gfx.drawRect(shape.x || 0, shape.y || 0, shape.width, shape.height);
                     }
                     gfx.endFill();
                 }
@@ -661,6 +627,41 @@
                     this.container.destroy();
                 }
                 this.container = null;
+
+                this.interpolate.recycle();
+                this.interpolate = null;
+            }
+        },
+    
+        publicMethods: {
+            /**
+             * Remove this entity's container from the containing rendering container.
+             *
+             * @method platypus.components.RenderContainer#removeFromParentContainer
+             */
+            removeFromParentContainer: function () {
+                if (this.parentContainer) {
+                    if (this.mask && !this.localMask) {
+                        this.setMask();
+                    }
+
+                    this.parentContainer.removeChild(this.container);
+                }
+            },
+            
+            /**
+             * Add this entity's container to a rendering container.
+             *
+             * @method platypus.components.RenderContainer#addToParentContainer
+             * @param {Container} container Container to add this to.
+             */
+            addToParentContainer: function (container) {
+                this.parentContainer = container;
+                this.parentContainer.addChild(this.container);
+
+                if (this.mask && !this.localMask) {
+                    this.setMask(this.mask);
+                }
             }
         }
     });

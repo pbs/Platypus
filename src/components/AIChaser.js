@@ -1,17 +1,9 @@
-/**
- * This component acts as a simple AI that will chase another entity.
- *
- * @namespace platypus.components
- * @class AIChaser
- * @uses platypus.Component
- */
-/* global include, platypus */
-(function () {
-    'use strict';
-    
-    var Vector = include('platypus.Vector');
+/* global platypus */
+import Vector from '../Vector.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.AIChaser.prototype */{
         
         id: 'AIChaser',
         
@@ -46,6 +38,20 @@
             speed: 0.3
         },
         
+        /**
+         * This component acts as a simple AI that will chase another entity.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#load
+         * @fires platypus.Entity#chase
+         * @listens platypus.Entity#handle-ai
+         * @listens platypus.Entity#set-target
+         * @listens platypus.Entity#set-target-offset
+         * @listens platypus.Entity#start-chasing
+         * @listens platypus.Entity#stop-chasing
+         */
         initialize: function () {
             this.target = this.owner.target || null;
             this.offset = Vector.setUp(0, 0);
@@ -54,11 +60,6 @@
         },
 
         events: {
-            /**
-             * This component listens for this event to initialize movement.
-             *
-             * @method 'load'
-             */
             "load": function () {
                 if (!this.owner.addMover) {
                     platypus.debug.warn('The "AIChaser" component requires a "Mover" component to function correctly.');
@@ -72,11 +73,6 @@
                 }).vector;
             },
         
-            /**
-             * This AI listens for a step message triggered by its entity parent in order to perform its logic on each tick.
-             *
-             * @method 'handle-ai'
-             */
             "handle-ai": function () {
                 var v = null,
                     m = 0,
@@ -100,7 +96,7 @@
                     /**
                      * This event is triggered whenever the entity begins chasing another entity or stops chasing another entity.
                      *
-                     * @event 'chase'
+                     * @event platypus.Entity#chase
                      * @param chasing {boolean} Whether the entity is chasing another entity.
                      */
                     this.owner.triggerEvent('chase', c);
@@ -110,7 +106,7 @@
             /**
              * On receiving this message, the component will change its target and begin chasing the new entity.
              *
-             * @method 'set-target'
+             * @event platypus.Entity#set-target
              * @param entity {platypus.Entity} Sets this entity's target to the provided entity.
              */
             "set-target": function (entity) {
@@ -122,7 +118,7 @@
             /**
              * On receiving this message, the component will change its target offset.
              *
-             * @method 'set-target-offset'
+             * @event platypus.Entity#set-target-offset
              * @param offset {Object|Vector} Sets the chased entity's offset to the provided offset.
              * @param offset.x {number} The offset along the x-axis.
              * @param offset.y {number} The offset along the y-axis.
@@ -135,7 +131,7 @@
             /**
              * On receiving this message, the component will begin chasing the entity.
              *
-             * @method 'start-chasing'
+             * @event platypus.Entity#start-chasing
              * @param [entity] {platypus.Entity} Sets the entity if it's provided.
              */
             "start-chasing": function (entity) {
@@ -148,7 +144,7 @@
             /**
              * On receiving this message, the component will cease chasing the entity.
              *
-             * @method 'stop-chasing'
+             * @event platypus.Entity#stop-chasing
              */
             "stop-chasing": function () {
                 this.chasing = false;

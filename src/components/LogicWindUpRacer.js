@@ -1,15 +1,7 @@
-/**
- * Replicates logic for a wind-up toy: listens for a wind-up message over a series of ticks to charge, and then begins racing once the charge is complete.
- *
- * @namespace platypus.components
- * @class LogicWindUpRacer
- * @uses platypus.Component
- */
-/*global platypus */
-(function () {
-    'use strict';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicWindUpRacer.prototype */{
         
         id: 'LogicWindUpRacer',
         
@@ -42,6 +34,22 @@
             windTime: 500
         },
         
+        /**
+         * Replicates logic for a wind-up toy: listens for a wind-up message over a series of ticks to charge, and then begins racing once the charge is complete.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#hit-solid
+         * @listens platypus.Entity#stop-racing
+         * @listens platypus.Entity#wind-up
+         * @fires platypus.Entity#racing
+         * @fires platypus.Entity#stopped-racing
+         * @fires platypus.Entity#winding
+         * @fires platypus.Entity#stopped-winding
+         * @fires platypus.Entity#blocked
+         */
         initialize: function () {
             var thisState = this.owner.state;
             
@@ -60,12 +68,6 @@
         },
 
         events: {
-            /**
-             * On a `tick` logic message, the component updates its charging counter if necessary.
-             *
-             * @method 'handle-logic'
-             * @param message.delta {Number} To determine how much to charge, the component checks the length of the tick.
-             */
             "handle-logic": function (resp) {
                 var thisState = this.state;
                 
@@ -74,7 +76,7 @@
                     /**
                      * This event is triggered when winding is finished and the entity begins racing.
                      *
-                     * @event 'racing'
+                     * @event platypus.Entity#racing
                      */
                     if (!this.blocked && this.right && thisState.get('right')) {
                         this.owner.x += this.speed * resp.delta;
@@ -88,7 +90,7 @@
                         /**
                          * This event is triggered when the entity stops racing.
                          *
-                         * @event 'stopped-racing'
+                         * @event platypus.Entity#stopped-racing
                          */
                         this.owner.triggerEvent('stopped-racing');
                     }
@@ -100,7 +102,7 @@
                     /**
                      * This event is triggered as the entity winds up.
                      *
-                     * @event 'winding'
+                     * @event platypus.Entity#winding
                      * @param fraction {Number} The amount of progress that has been made from 0 to 1.
                      */
                     this.owner.triggerEvent('winding', this.windProgress / this.windTime);
@@ -113,7 +115,7 @@
                     /**
                      * This event is triggered when the entity stops winding.
                      *
-                     * @event 'stopped-winding'
+                     * @event platypus.Entity#stopped-winding
                      */
                     this.owner.triggerEvent('stopped-winding');
                 }
@@ -127,7 +129,7 @@
             /**
              * Causes the entity to stop racing.
              *
-             * @method 'stop-racing'
+             * @event platypus.Entity#stop-racing
              */
             "stop-racing": function () {
                 this.racing = false;
@@ -137,7 +139,7 @@
             /**
              * Causes the entity to wind up for a race.
              *
-             * @method 'wind-up'
+             * @event platypus.Entity#wind-up
              * @param message.pressed {Boolean} If `message` is included, the component checks the value of `pressed`: `false` causes winding to stop.
              */
             "wind-up": function (value) {
@@ -146,12 +148,6 @@
                 this.left  = this.state.get('left');
             },
             
-            /**
-             * On receiving this message, the entity stops racing.
-             *
-             * @method 'hit-solid'
-             * @param collision.x {Number} Either 1,0, or -1. 1 if we're colliding with an object on our right. -1 if on our left. 0 if not at all.
-             */
             "hit-solid": function (collision) {
                 if (collision.x) {
                     if (this.racing && ((this.right && (collision.x > 0)) || (this.left && (collision.x < 0)))) {
@@ -160,7 +156,7 @@
                         /**
                          * This message is triggered if the entity collides while racing.
                          *
-                         * @event 'blocked'
+                         * @event platypus.Entity#blocked
                          * @param collision {platypus.CollisionData} Collision information from the entity or tile that blocked movement.
                          */
                         this.owner.triggerEvent('blocked', collision);

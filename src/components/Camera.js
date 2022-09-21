@@ -1,18 +1,13 @@
-/**
- * This component controls the game camera deciding where and how it should move. The camera also broadcasts messages when the window resizes or its orientation changes.
- *
- * @namespace platypus.components
- * @class Camera
- * @uses platypus.Component
-*/
-/*global createjs, PIXI, platypus, include, window */
-(function () {
-    'use strict';
-    
+/*global platypus, window */
+import AABB from '../AABB.js';
+import {Container} from 'pixi.js';
+import Data from '../Data.js';
+import TweenJS from '@tweenjs/tween.js';
+import Vector from '../Vector.js';
+import createComponentClass from '../factory.js';
+
+export default (function () {
     var DPR = window.devicePixelRatio || 1,
-        AABB = include('platypus.AABB'),
-        Data = include('platypus.Data'),
-        Vector = include('platypus.Vector'),
         anchorBound = function (anchorAABB, entityOffsetX, entityOffsetY, entity) {
             var aabb = AABB.setUp(entity.x + entityOffsetX, entity.y + entityOffsetY, entity.width, entity.height),
                 x = anchorAABB.x,
@@ -58,7 +53,7 @@
             return event.clientY;
         };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.Camera.prototype */{
         id: 'Camera',
         properties: {
             /**
@@ -85,7 +80,6 @@
              * @property mode
              * @type String
              * @default 'static'
-             * @since 0.9.0
              **/
             "mode": "static",
             
@@ -148,7 +142,7 @@
              * The entity's canvas element is used to determine the window size of the camera.
              *
              * @property canvas
-             * @type DOMElement Canvas
+             * @type Canvas
              * @default null
              */
             "canvas": null,
@@ -178,8 +172,41 @@
              * @type number
              * @default: 600
              **/
-            "transitionAngle": 600
+            "transitionAngle": 600,
+
+            /**
+             * Sets the z-order of this layer relative to other loaded layers.
+             *
+             * @property z
+             * @type Number
+             * @default 0
+             */
+            "z": 0
         },
+
+        /**
+         * This component controls the game camera deciding where and how it should move. The camera also broadcasts messages when the window resizes or its orientation changes.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#child-entity-added
+         * @listens platypus.Entity#child-entity-updated
+         * @listens platypus.Entity#follow
+         * @listens platypus.Entity#load
+         * @listens platypus.Entity#pointerdown
+         * @listens platypus.Entity#pressmove
+         * @listens platypus.Entity#pressup
+         * @listens platypus.Entity#relocate
+         * @listens platypus.Entity#render-world
+         * @listens platypus.Entity#resize-camera
+         * @listens platypus.Entity#shake
+         * @listens platypus.Entity#tick
+         * @listens platypus.Entity#world-loaded
+         * @fires platypus.Entity#camera-loaded
+         * @fires platypus.Entity#camera-update
+         * @fires platypus.Entity#render-update
+         */
         initialize: function (definition) {
             var worldVP = AABB.setUp(this.x, this.y, this.width, this.height),
                 worldCamera = Data.setUp(
@@ -266,46 +293,29 @@
             if (this.owner.container) {
                 this.parentContainer = this.owner.container;
             } else if (this.owner.stage) {
-                this.canvas = this.canvas || platypus.game.app.display.canvas; //TODO: Probably need to find a better way to handle resizing - DDD 10/4/2015
+                this.canvas = this.canvas || platypus.game.canvas; //TODO: Probably need to find a better way to handle resizing - DDD 10/4/2015
                 this.parentContainer = this.owner.stage;
                 this.owner.width  = this.canvas.width;
                 this.owner.height = this.canvas.height;
             } else {
                 platypus.debug.warn('Camera: There appears to be no Container on this entity for the camera to display.');
             }
-            this.container = new PIXI.Container();
+            this.container = new Container();
+            this.container.zIndex = this.z;
             this.container.visible = false;
             this.parentContainer.addChild(this.container);
             this.movedCamera = false;
         },
         events: {
-            /**
-             * Sets up the camera window size on load.
-             *
-             * @method 'load'
-             */
             "load": function () {
                 this.resize();
             },
             
-            /**
-             * On receiving this message, the camera begins viewing the world.
-             *
-             * @method 'render-world'
-             * @param data {Object} Information about the world.
-             * @param data.world {PIXI.Container} The container containing world entities.
-             */
             "render-world": function (data) {
                 this.world = data.world;
                 this.container.addChild(this.world);
             },
             
-            /**
-             * The viewport is flagged to update when children are added.
-             *
-             * @method 'child-entity-added'
-             * @param entity {platypus.Entity} Expects an entity as the message object.
-              **/
             "child-entity-added": function (entity) {
                 this.viewportUpdate = true;
                 
@@ -313,21 +323,15 @@
                     /**
                      * On receiving a "world-loaded" message, the camera broadcasts the world size to all children in the world.
                      *
-                     * @event 'camera-loaded'
-                     * @param message
-                     * @param message.world {platypus.AABB} The dimensions of the world map.
+                     * @event platypus.Entity#camera-loaded
+                     * @param camera {Object}
+                     * @param camera.world {platypus.AABB} The dimensions of the world.
+                     * @param camera.viewport {platypus.AABB} The AABB describing the camera viewport in world units.
                      **/
                     entity.triggerEvent('camera-loaded', this.cameraLoadedMessage);
                 }
             },
 
-            /**
-             * Triggers "camera-update" on newly changed entities.
-             *
-             * @method 'child-entity-updated'
-             * @param entity {platypus.Entity} Expects an entity as the message object to determine whether to trigger `camera-update` on it.
-             * @since 0.6.8
-             **/
             "child-entity-updated": function (entity) {
                 this.viewportUpdate = true;
                 
@@ -336,15 +340,6 @@
                 }
             },
 
-            /**
-             * On receiving this message, the camera updates its world location and size as necessary. An example of this message is triggered by the [TiledLoader](platypus.components.TiledLoader.html) component.
-             *
-             * @method 'world-loaded'
-             * @param message {Object}
-             * @param [message.width] {number} The width of the loaded world.
-             * @param [message.height] {number} The height of the loaded world.
-             * @param [message.camera] {platypus.Entity} An entity that the camera should follow in the loaded world.
-             **/
             "world-loaded": function (values) {
                 var msg = this.message;
                 
@@ -361,13 +356,6 @@
                 this.updateMovementMethods();
             },
             
-            /**
-             * If mouse dragging should cause the camera to move, this listens for the beginning of the drag motion.
-             *
-             * @method 'pointerdown'
-             * @param event {Object} The pointer event.
-             * @since 0.9.0
-             **/
             "pointerdown": function (event) {
                 var worldVP = this.worldCamera.viewport;
 
@@ -385,13 +373,6 @@
                 }
             },
             
-            /**
-             * If mouse dragging should cause the camera to move, this listens the drag motion.
-             *
-             * @method 'pressmove'
-             * @param event {Object} The pointer event.
-             * @since 0.9.0
-             **/
             "pressmove": function (event) {
                 if (this.mouse) {
                     if (this.move(this.mouseWorldOrigin.x + ((this.mouse.x - getClientX(event.event)) * DPR) / this.world.transform.worldTransform.a, this.mouseWorldOrigin.y + ((this.mouse.y - getClientY(event.event)) * DPR) / this.world.transform.worldTransform.d)) {
@@ -402,13 +383,6 @@
                 }
             },
 
-            /**
-             * If mouse dragging should cause the camera to move, this listens for the end of the drag motion.
-             *
-             * @method 'pressup'
-             * @param event {Object} The pointer event.
-             * @since 0.9.0
-             **/
             "pressup": function (event) {
                 if (this.mouse) {
                     this.mouse = null;
@@ -419,18 +393,7 @@
                 }
             },
             
-            /**
-             * On a "tick" step event, the camera updates its location according to its current state.
-             *
-             * @method 'tick'
-             * @param message {Object}
-             * @param message.delta {Number} If necessary, the current camera update function may require the length of the tick to adjust movement rate.
-             **/
             "tick": function (resp) {
-                var msg       = this.message,
-                    viewport  = msg.viewport,
-                    worldCamera = this.worldCamera;
-                
                 if ((this.state === 'following') && this.followingFunction(this.following, resp.delta)) {
                     this.viewportUpdate = true;
                 }
@@ -447,94 +410,95 @@
                     this.lastWidth = this.owner.width;
                     this.lastHeight = this.owner.height;
                 }
-                
-                if (this.viewportUpdate) {
-                    this.viewportUpdate = false;
-                    this.stationary = false;
-                    msg.stationary = false;
+
+                if (this.shakeIncrementor < this.shakeTime) {
+                    const viewport = this.worldCamera.viewport;
+
+                    this.viewportUpdate = true;
+                    this.shakeIncrementor += resp.delta;
+                    this.shakeIncrementor = Math.min(this.shakeIncrementor, this.shakeTime);
                     
-                    viewport.set(worldCamera.viewport);
-
-                    if (this.shakeIncrementor < this.shakeTime) {
-                        this.viewportUpdate = true;
-                        this.shakeIncrementor += resp.delta;
-                        this.shakeIncrementor = Math.min(this.shakeIncrementor, this.shakeTime);
-                        
-                        if (this.shakeIncrementor < this.xShakeTime) {
-                            viewport.moveX(viewport.x + Math.sin((this.shakeIncrementor / this.xWaveLength) * (Math.PI * 2)) * this.xMagnitude);
-                        }
-                        
-                        if (this.shakeIncrementor < this.yShakeTime) {
-                            viewport.moveY(viewport.y + Math.sin((this.shakeIncrementor / this.yWaveLength) * (Math.PI * 2)) * this.yMagnitude);
-                        }
+                    if (this.shakeIncrementor < this.xShakeTime) {
+                        viewport.moveX(viewport.x + Math.sin((this.shakeIncrementor / this.xWaveLength) * (Math.PI * 2)) * this.xMagnitude);
                     }
-
-                    // Set up the rest of the camera message:
-                    msg.scaleX         = this.windowPerWorldUnitWidth;
-                    msg.scaleY         = this.windowPerWorldUnitHeight;
-                    msg.orientation    = worldCamera.orientation;
                     
-                    // Transform the world to appear within camera
-                    this.world.setTransform(-viewport.x, -viewport.y, 1, 1, 0);
-                    this.container.setTransform(viewport.halfWidth * msg.scaleX, viewport.halfHeight * msg.scaleY, msg.scaleX, msg.scaleY, msg.orientation);
-                    this.container.visible = true;
-
-                    /**
-                     * This component fires "camera-update" when the position of the camera in the world has changed. This event is triggered on both the entity (typically a layer) as well as children of the entity.
-                     *
-                     * @event 'camera-update'
-                     * @param message {Object}
-                     * @param message.world {platypus.AABB} The dimensions of the world map.
-                     * @param message.orientation {Number} Number describing the orientation of the camera.
-                     * @param message.scaleX {Number} Number of window pixels that comprise a single world coordinate on the x-axis.
-                     * @param message.scaleY {Number} Number of window pixels that comprise a single world coordinate on the y-axis.
-                     * @param message.viewport {platypus.AABB} An AABB describing the world viewport area.
-                     * @param message.stationary {Boolean} Whether the camera is moving.
-                     **/
-                    this.owner.triggerEvent('camera-update', msg);
-                    if (this.owner.triggerEventOnChildren) {
-                        this.owner.triggerEventOnChildren('camera-update', msg);
-                    }
-                } else if (!this.stationary) {
-                    this.stationary = true;
-                    msg.stationary = true;
-
-                    this.owner.triggerEvent('camera-update', msg);
-                    if (this.owner.triggerEventOnChildren) {
-                        this.owner.triggerEventOnChildren('camera-update', msg);
+                    if (this.shakeIncrementor < this.yShakeTime) {
+                        viewport.moveY(viewport.y + Math.sin((this.shakeIncrementor / this.yWaveLength) * (Math.PI * 2)) * this.yMagnitude);
                     }
                 }
+
+                this.updateViewport();
                 
                 if (this.lastFollow.begin) {
                     if (this.lastFollow.begin < Date.now()) {
                         this.follow(this.lastFollow);
                     }
                 }
+
+                if (this.container.zIndex !== this.z) {
+                    this.container.zIndex = this.z;
+                }
             },
             
             /**
             * The camera listens for this event to change its world viewport size.
             *
-            * @method 'resize-camera'
-            * @param dimensions {Object} List of key/value pairs describing new viewport size
-            * @param dimensions.width {number} Width of the camera viewport
-            * @param dimensions.height {number} Height of the camera viewport
+            * @event platypus.Entity#resize-camera
+            * @param {Object} [dimensions] List of key/value pairs describing new viewport size
+            * @param {number} dimensions.width Width of the camera viewport
+            * @param {number} dimensions.height Height of the camera viewport
+            * @param {number} dimensions.time Time in millseconds over which to tween the scale change.
+            * @param {Boolean} [forceUpdate] Whether to update graphics.
             **/
-            "resize-camera": function (dimensions) {
-                this.width = dimensions.width;
-                this.height = dimensions.height;
-                this.resize();
+            "resize-camera": function (dimensions = {}, forceUpdate = false) {
+                const
+                    {width, height, time, ease} = dimensions,
+                    forcedUpdate = forceUpdate || dimensions.forceUpdate;
+
+                if (time) {
+                    const
+                        tween = new TweenJS.Tween(this);
+                    
+                    tween.to({width, height}, time);
+                    if (ease) {
+                        tween.easing(ease);
+                    }
+                    tween.onUpdate(() => {
+                        this.resize();
+                    }).start();
+                } else {
+                    if (width && height) {
+                        this.width = dimensions.width;
+                        this.height = dimensions.height;
+                    }
+                    if (this.canvas) {
+                        this.owner.width  = this.canvas.width;
+                        this.owner.height = this.canvas.height;
+                    }
+                    this.resize();
+                }
+                if (forcedUpdate) {
+                    this.updateViewport();
+
+                    /**
+                     * Sends a 'handle-render' message to all the children in the Container. This bypasses a render pause value and is useful for resizes happening outside the game loop.
+                     *
+                     * @event platypus.Entity#render-update
+                     * @param tick {Object} An object containing tick data.
+                     */
+                    this.owner.triggerEvent('render-update');
+                }
             },
-            
+
             /**
              * The camera listens for this event to change its position in the world.
              *
-             * @method 'relocate'
-             * @param location {Vector|Object} List of key/value pairs describing new location
-             * @param location.x {Number} New position along the x-axis.
-             * @param location.y {Number} New position along the y-axis.
-             * @param [location.time] {Number} The time to transition to the new location.
-             * @param [location.ease] {Function} The ease function to use. Defaults to a linear transition.
+             * @event platypus.Entity#relocate
+             * @param {Vector|Object} location List of key/value pairs describing new location
+             * @param {Number} location.x New position along the x-axis.
+             * @param {Number} location.y New position along the y-axis.
+             * @param {Number} [location.time] The time to transition to the new location.
+             * @param {Function} [location.ease] The ease function to use. Defaults to a linear transition.
              */
             "relocate": (function () {
                 var move = function (v) {
@@ -547,50 +511,38 @@
                     };
 
                 return function (location) {
-                    var v = null,
-                        worldVP = this.worldCamera.viewport;
-
-                    if (location.time && window.createjs && createjs.Tween) {
-                        v = Vector.setUp(worldVP.x, worldVP.y);
-                        createjs.Tween.get(v).to({x: location.x, y: location.y}, location.time, location.ease).on('change', move.bind(this, v)).call(stop.bind(v));
+                    if (location.time) {
+                        const
+                            worldVP = this.worldCamera.viewport,
+                            v = Vector.setUp(worldVP.x, worldVP.y),
+                            tween = new TweenJS.Tween(v);
+                        
+                        tween.to({x: location.x, y: location.y}, location.time);
+                        if (location.ease) {
+                            tween.easing(location.ease);
+                        }
+                        tween.onUpdate(move.bind(this, v)).onStop(stop.bind(v)).start();
                     } else if (this.move(location.x, location.y)) {
                         this.viewportUpdate = true;
                     }
                 };
             }()),
             
-            /**
-            * On receiving this message, the camera begins following the requested object.
-            *
-            * @method 'follow'
-            * @param message {Object}
-            * @param message.mode {String} Can be "locked", "forward", "bounding", "anchor-bound", or "static". "static" suspends following, but the other three settings require that the entity parameter be defined. Also set the bounding area parameters if sending "bounding" as the following method and the movement parameters if sending "forward" as the following method.
-            * @param [message.entity] {platypus.Entity} The entity that the camera should commence following.
-            * @param [message.top] {number} The top of a bounding box following an entity.
-            * @param [message.left] {number} The left of a bounding box following an entity.
-            * @param [message.width] {number} The width of a bounding box following an entity.
-            * @param [message.height] {number} The height of a bounding box following an entity.
-            * @param [message.movementX] {number} Movement multiplier for focusing the camera ahead of a moving entity in the horizontal direction.
-            * @param [message.movementY] {number} Movement multiplier for focusing the camera ahead of a moving entity in the vertical direction.
-            * @param [message.offsetX] {number} How far to offset the camera from the entity horizontally.
-            * @param [message.offsetY] {number} How far to offset the camera from the entity vertically.
-            * @param [message.time] {number} How many milliseconds to follow the entity.
-            **/
             "follow": function (def) {
                 this.follow(def);
             },
             
             /**
-            * On receiving this message, the camera will shake around its target location.
-            *
-            * @method 'shake'
-            * @param shake {Object}
-            * @param [shake.xMagnitude] {number} How much to move along the x axis.
-            * @param [shake.yMagnitude] {number} How much to move along the y axis.
-            * @param [shake.xFrequency] {number} How quickly to shake along the x axis.
-            * @param [shake.yFrequency] {number} How quickly to shake along the y axis.
-            * @param [shake.time] {number} How long the camera should shake.
-            **/
+             * On receiving this message, the camera will shake around its target location.
+             *
+             * @event platypus.Entity#shake
+             * @param {Object} shake
+             * @param {number} [shake.xMagnitude] How much to move along the x axis.
+             * @param {number} [shake.yMagnitude] How much to move along the y axis.
+             * @param {number} [shake.xFrequency] How quickly to shake along the x axis.
+             * @param {number} [shake.yFrequency] How quickly to shake along the y axis.
+             * @param {number} [shake.time] How long the camera should shake.
+             */
             "shake": function (shakeDef) {
                 var def = shakeDef || {},
                     xMag    = def.xMagnitude || 0,
@@ -991,6 +943,56 @@
                     this.threshold = threshold;
                 };
             }()),
+
+            updateViewport: function () {
+                const
+                    msg       = this.message,
+                    viewport  = msg.viewport,
+                    worldCamera = this.worldCamera;
+                
+                if (this.viewportUpdate) {
+                    this.viewportUpdate = false;
+                    this.stationary = false;
+                    msg.stationary = false;
+                    
+                    viewport.set(worldCamera.viewport);
+
+                    // Set up the rest of the camera message:
+                    msg.scaleX         = this.windowPerWorldUnitWidth;
+                    msg.scaleY         = this.windowPerWorldUnitHeight;
+                    msg.orientation    = worldCamera.orientation;
+                    
+                    // Transform the world to appear within camera
+                    this.world.setTransform(-viewport.x, -viewport.y, 1, 1, 0);
+                    this.container.setTransform(viewport.halfWidth * msg.scaleX, viewport.halfHeight * msg.scaleY, msg.scaleX, msg.scaleY, msg.orientation);
+                    this.container.visible = true;
+
+                    /**
+                     * This component fires "camera-update" when the position of the camera in the world has changed. This event is triggered on both the entity (typically a layer) as well as children of the entity.
+                     *
+                     * @event platypus.Entity#camera-update
+                     * @param message {Object}
+                     * @param message.world {platypus.AABB} The dimensions of the world map.
+                     * @param message.orientation {Number} Number describing the orientation of the camera.
+                     * @param message.scaleX {Number} Number of window pixels that comprise a single world coordinate on the x-axis.
+                     * @param message.scaleY {Number} Number of window pixels that comprise a single world coordinate on the y-axis.
+                     * @param message.viewport {platypus.AABB} An AABB describing the world viewport area.
+                     * @param message.stationary {Boolean} Whether the camera is moving.
+                     **/
+                    this.owner.triggerEvent('camera-update', msg);
+                    if (this.owner.triggerEventOnChildren) {
+                        this.owner.triggerEventOnChildren('camera-update', msg);
+                    }
+                } else if (!this.stationary) {
+                    this.stationary = true;
+                    msg.stationary = true;
+
+                    this.owner.triggerEvent('camera-update', msg);
+                    if (this.owner.triggerEventOnChildren) {
+                        this.owner.triggerEventOnChildren('camera-update', msg);
+                    }
+                }
+            },
             
             destroy: function () {
                 this.parentContainer.removeChild(this.container);
@@ -1019,14 +1021,13 @@
             /**
              * Returns whether a particular display object intersects the camera's viewport on the canvas.
              *
-             * @method isOnCanvas
+             * @method platypus.components.Camera#isOnCanvas
              * @param bounds {PIXI.Rectangle|Object} The bounds of the display object.
              * @param bounds.height {Number} The height of the display object.
              * @param bounds.width {Number} The width of the display object.
              * @param bounds.x {Number} The left edge of the display object.
              * @param bounds.y {Number} The top edge of the display object.
              * @return {Boolean} Whether the display object intersects the camera's bounds.
-             * @since 0.10.0
              */
             isOnCanvas: function (bounds) {
                 var canvas = this.canvas;
@@ -1037,7 +1038,7 @@
             /**
              * Returns a world coordinate corresponding to a provided window coordinate.
              *
-             * @method windowToWorld
+             * @method platypus.components.Camera#windowToWorld
              * @param windowVector {platypus.Vector} A vector describing a window position.
              * @param withOffset {Boolean} Whether to provide a world position relative to the camera's location.
              * @param vector {platypus.Vector} If provided, this is used as the return vector.
@@ -1060,7 +1061,7 @@
             /**
              * Returns a window coordinate corresponding to a provided world coordinate.
              *
-             * @method worldToWindow
+             * @method platypus.components.Camera#worldToWindow
              * @param worldVector {platypus.Vector} A vector describing a world position.
              * @param withOffset {Boolean} Whether to provide a window position relative to the camera's location.
              * @param vector {platypus.Vector} If provided, this is used as the return vector.

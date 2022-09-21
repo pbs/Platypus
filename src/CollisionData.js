@@ -1,26 +1,25 @@
-/**
- * CollisionData holds collision data passed to entities during collisions with other entities. This class is primarily used by the ["HandlerCollision"]("HandlerCollision"%20Component.html) Component to trigger messages on child entities as collision occur.
- *
- * @namespace platypus
- * @class CollisionData
- * @constructor
- * @param occurredOrData {Boolean|CollisionData} Whether this represents an actual collision between two shapes. If a CollisionData instance is provided, the instance's full set of values are copied.
- * @param direction {Number} 1 or -1 to define the direction of the collision.
- * @param position {Number} A positive number describing position along the line of collision direction.
- * @param deltaMovement {Number} A positive number describing the magnitude of overlap.
- * @param aABB {platypus.AABB} An AABB of the colliding shape.
- * @param thisShape {platypus.Shape} The moving shape.
- * @param thatShape {platypus.Shape} The stationary shape being collided with.
- * @param vector {platypus.Vector} The vector describing the contact point.
- * @param stuck {Number} The amount of unwarranted overlap if shapes start in a collided position before moving.
- * @return {platypus.CollisionData} Returns the new CollisionData object.
- */
-/*global include, platypus, recycle, springroll */
-platypus.CollisionData = (function () {
-    'use strict';
-    
-    var Vector = include('platypus.Vector'),
-        CollisionData = function (occurredOrData) {
+import Vector from './Vector.js';
+import config from 'config';
+import recycle from 'recycle';
+
+export default (function () {
+    /**
+     * CollisionData holds collision data passed to entities during collisions with other entities. This class is primarily used by the ["HandlerCollision"]("HandlerCollision"%20Component.html) Component to trigger messages on child entities as collision occur.
+     *
+     * @memberof platypus
+     * @class CollisionData
+     * @param occurredOrData {Boolean|CollisionData} Whether this represents an actual collision between two shapes. If a CollisionData instance is provided, the instance's full set of values are copied.
+     * @param direction {Number} 1 or -1 to define the direction of the collision.
+     * @param position {Number} A positive number describing position along the line of collision direction.
+     * @param deltaMovement {Number} A positive number describing the magnitude of overlap.
+     * @param aABB {platypus.AABB} An AABB of the colliding shape.
+     * @param thisShape {platypus.Shape} The moving shape.
+     * @param thatShape {platypus.Shape} The stationary shape being collided with.
+     * @param vector {platypus.Vector} The vector describing the contact point.
+     * @param stuck {Number} The amount of unwarranted overlap if shapes start in a collided position before moving.
+     * @return {platypus.CollisionData} Returns the new CollisionData object.
+     */
+    var CollisionData = function (occurredOrData) {
             if (!this.vector) {
                 this.vector = Vector.setUp();
             }
@@ -35,7 +34,7 @@ platypus.CollisionData = (function () {
     /**
      * Sets all of the properties of the CollisionData.
      *
-     * @method set
+     * @method platypus.CollisionData#set
      * @param occurred {Boolean} Whether this represents an actual collision between two shapes.
      * @param direction {Number} 1 or -1 to define the direction of the collision.
      * @param position {Number} A positive number describing position along the line of collision direction.
@@ -45,7 +44,6 @@ platypus.CollisionData = (function () {
      * @param thatShape {platypus.Shape} The stationary shape being collided with.
      * @param vector {platypus.Vector} The vector describing the contact point.
      * @param stuck {Number} The amount of unwarranted overlap if shapes start in a collided position before moving.
-     * @since 0.8.7
      */
     proto.set = function (occurred, direction, position, deltaMovement, aABB, thisShape, thatShape, vector, stuck) {
         this.occurred = occurred || false;
@@ -62,7 +60,7 @@ platypus.CollisionData = (function () {
     /**
      * Sets all of the properties of the CollisionData to match those of the provided CollisionData object.
      *
-     * @method copy
+     * @method platypus.CollisionData#copy
      * @param dataToCopy {CollisionData} The object values to copy.
      */
     proto.copy = function (dataToCopy) {
@@ -80,24 +78,21 @@ platypus.CollisionData = (function () {
     /**
      * Returns an collisionData from cache or creates a new one if none are available.
      *
-     * @method CollisionData.setUp
+     * @method platypus.CollisionData.setUp
      * @return {platypus.CollisionData} The instantiated CollisionData.
-     * @since 0.8.7
      */
     /**
      * Returns a collisionData back to the cache.
      *
-     * @method CollisionData.recycle
+     * @method platypus.CollisionData.recycle
      * @param collisionData {platypus.CollisionData} The collisionData to be recycled.
-     * @since 0.8.7
      */
     /**
      * Relinquishes properties of the collisionData and recycles it.
      *
-     * @method recycle
-     * @since 0.8.7
+     * @method platypus.CollisionData#recycle
      */
-    recycle.add(CollisionData, !!springroll.Debug, 'CollisionData');
+    recycle.add(CollisionData, 'CollisionData', CollisionData, null, true, config.dev);
     
     return CollisionData;
 }());

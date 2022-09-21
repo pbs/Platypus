@@ -1,23 +1,5 @@
 /**
 # COMPONENT **NodeResident**
-This component connects an entity to its parent's [[NodeMap]]. It manages navigating the NodeMap and triggering events on the entity related to its position.
-
-## Dependencies
-- [[NodeMap]] (on entity's parent) - This component uses the `NodeMap` to determine its location and navigate to other nodes.
-- [[HandlerLogic]] (on entity's parent) - This component listens for a logic tick message to maintain and update its location.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - On a `tick` logic message, the component updates its location and triggers messages regarding its neighbors.
-  - @param message.delta (Number) - This component uses the current time to determine its progress along an edge if moving from node to node on the map.
-- **on-node** - Sets the entity's position to the sent node, updates its coordinates, and triggers messages regarding its neighbors if any.
-  - @param node (Node) - The node that this entity should be located on.
-- **leave-node** - Removes the entity from its current node if it's on one.
-- **goto-node** - Begins moving the entity along edges to get to sent node.
-  - @param node (Node) - The node that this entity should move to.
-- **follow** - Causes this entity to follow another entity. The leading entity must also have a `NodeResident` component and exist in the NodeMap.
-  - @param entity (Entity) - The entity that this entity should follow.
 
 ### Local Broadcasts:
 - **next-to-[entity-type]** - This message is triggered when the entity is placed on a node. It will trigger on all neighboring entities, as well as on itself on behalf of neighboring entities.
@@ -53,18 +35,10 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
       // Optional. Determines whether the entity's orientation is updated by movement across the NodeMap. Default is false.
     }
 */
+import {arrayCache, greenSlice} from '../utils/array.js';
+import createComponentClass from '../factory.js';
 
-/**
- * This component connects an entity to its parent's [[NodeMap]]. It manages navigating the NodeMap and triggering events on the entity related to its position.
- *
- * @namespace platypus.components
- * @class NodeResident
- * @uses platypus.Component
- */
-/* global platypus */
-(function () {
-    'use strict';
-    
+export default (function () {
     var createGateway = function (nodeDefinition, map, gateway) {
             return function () {
                 // ensure it's a node if one is available at this gateway
@@ -144,12 +118,22 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
             return true;
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.NodeResident.prototype */{
         
         id: 'NodeResident',
+
+        properties: {
+            /**
+             * This sets the resident's initial node.
+             *
+             * @property node
+             * @type Object
+             * @default null
+             */
+            node: null
+        },
         
         publicProperties: {
-
             /**
              * This describes the rate at which a node resident should progress along an edge to another node. This property is set on the entity itself and can be manipulated in real-time.
              *
@@ -160,8 +144,19 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
             speed: 0
         },
         
+        /**
+         * This component connects an entity to its parent's [[NodeMap]]. It manages navigating the NodeMap and triggering events on the entity related to its position.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#handle-logic
+         * @fires platypus.Entity#in-location
+         */
         initialize: function (definition) {
-            var offset = definition.offset || this.owner.nodeOffset || {};
+            const
+                offset = definition.offset || this.owner.nodeOffset || {},
+                startingNode = this.node;
             
             this.nodeId = this.owner.nodeId = definition.nodeId || this.owner.nodeId;
             
@@ -178,13 +173,25 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                 y: offset.y || 0,
                 z: offset.z || 0
             };
-            this.destinationNodes = Array.setUp();
+            this.destinationNodes = arrayCache.setUp();
             this.algorithm = definition.algorithm || distance;
             
             this.state = this.owner.state;
             this.state.set('moving', false);
             this.state.set('on-node', false);
             this.currentState = '';
+
+            Object.defineProperty(this.owner, 'node', {
+                get: () => this.node,
+                set: (value) => {
+                    if (value) {
+                        this.getOnNode(value);
+                    } else {
+                        this.getOffNode();
+                    }
+                }
+            });
+            this.owner.node = startingNode;
         },
         
         events: {
@@ -199,14 +206,14 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                     arr = null;
                 
                 if (!this.owner.node) {
-                    arr = Array.setUp(this.owner.x, this.owner.y);
-                    this.owner.triggerEvent('on-node', this.owner.parent.getClosestNode(arr));
-                    arr.recycle();
+                    arr = arrayCache.setUp(this.owner.x, this.owner.y);
+                    this.owner.node = this.owner.parent.getClosestNode(arr);
+                    arrayCache.recycle(arr);
                     
                     /**
                      * This event is triggered if the entity is placed on the map but not assigned a node. It is moved to the nearest node and "in-location" is triggered.
                      *
-                     * @event 'in-location'
+                     * @event platypus.Entity#in-location
                      * @param entity {platypus.Entity} The entity that is in location.
                      */
                     this.owner.triggerEvent('in-location', this.owner);
@@ -240,8 +247,8 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                     if (this.node) {
                         this.onEdge(this.destinationNodes[0]);
                     } else if (!this.lastNode) {
-                        this.owner.triggerEvent('on-node', this.destinationNodes[0]);
-                        this.destinationNodes.greenSplice(0);
+                        this.owner.node = this.destinationNodes[0];
+                        this.destinationNodes.shift();
                         if (!this.destinationNodes.length) {
                             this.state.set('moving', false);
                             return;
@@ -250,7 +257,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                     
                     if (this.snapToNodes) {
                         for (i = 0; i < this.destinationNodes.length; i++) {
-                            this.owner.triggerEvent('on-node', this.destinationNodes[i]);
+                            this.owner.node = this.destinationNodes[i];
                         }
                         this.destinationNodes.length = 0;
                     } else {
@@ -259,8 +266,8 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                                 node = this.destinationNodes[0];
                                 momentum -= (this.distance - this.progress);
                                 this.progress = 0;
-                                this.destinationNodes.greenSplice(0);
-                                this.owner.triggerEvent('on-node', node);
+                                this.destinationNodes.shift();
+                                this.owner.node = node;
                                 if (this.destinationNodes.length && momentum) {
                                     this.onEdge(this.destinationNodes[0]);
                                 }
@@ -280,52 +287,6 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                 } else {
                     this.state.set('moving', false);
                 }
-            },
-            "on-node": function (node) {
-                var j = 0,
-                    entities = null;
-                
-                this.owner.node = this.node = node; //TODO: not sure if this needs to be accessible outside this component.
-                this.node.removeFromEdge(this.owner);
-                if (this.lastNode) {
-                    this.lastNode.removeFromEdge(this.owner);
-                }
-                this.node.addToNode(this.owner);
-                
-                this.setState('on-node');
-                
-                this.owner.x = this.node.x + this.offset.x;
-                this.owner.y = this.node.y + this.offset.y;
-                this.owner.z = this.node.z + this.offset.z;
-                if (this.updateOrientation && this.node.rotation) {
-                    this.owner.rotation = this.node.rotation;
-                }
-                
-                //add listeners for directions
-                this.owner.triggerEvent('set-directions');
-                
-                //trigger mapped messages for node types
-                if (this.friendlyNodes && this.friendlyNodes[node.type]) {
-                    this.owner.trigger(this.friendlyNodes[node.type], node);
-                }
-
-                //trigger "with" events
-                entities = node.contains;
-                for (j = 0; j < entities.length; j++) {
-                    if (this.owner !== entities[j]) {
-                        entities[j].triggerEvent("with-" + this.owner.type, this.owner);
-                        this.owner.triggerEvent("with-" + entities[j].type, entities[j]);
-                    }
-                }
-            },
-            "leave-node": function () {
-                if (this.node) {
-                    this.node.removeFromNode(this.owner);
-                    this.owner.triggerEvent('left-node', this.node);
-                    this.owner.triggerEvent('remove-directions');
-                }
-                this.lastNode = this.node;
-                this.node = null;
             },
             "goto-node": function (node) {
                 this.gotoNode(node);
@@ -377,7 +338,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                     }
                     
                     if (origin && nodesOrNodeType && !test(origin, nodesOrNodeType)) {
-                        nodes = Array.setUp();
+                        nodes = arrayCache.setUp();
                         travResp = this.traverseNode({
                             depth: depth,
                             origin: origin,
@@ -412,7 +373,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                             this.blocked = true;
                         }
                         
-                        nodes.recycle();
+                        arrayCache.recycle(nodes);
                     }
                 };
             }()),
@@ -472,7 +433,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                     }
                     
                     if (origin && node && (this.node !== node)) {
-                        nodes = Array.setUp();
+                        nodes = arrayCache.setUp();
                         
                         travResp = this.traverseNode({
                             depth: depth,
@@ -511,13 +472,63 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                             this.blocked = true;
                         }
                         
-                        nodes.recycle();
+                        arrayCache.recycle(nodes);
                     }
                     
                     return moving;
                 };
             }()),
-            
+
+            getOnNode: function (node) {
+                var j = 0,
+                    entities = null;
+                
+                this.node = node;
+                this.node.removeFromEdge(this.owner);
+                if (this.lastNode) {
+                    this.lastNode.removeFromEdge(this.owner);
+                }
+                this.node.addToNode(this.owner);
+                
+                this.setState('on-node');
+                
+                this.owner.x = this.node.x + this.offset.x;
+                this.owner.y = this.node.y + this.offset.y;
+                this.owner.z = this.node.z + this.offset.z;
+                if (this.updateOrientation && this.node.rotation) {
+                    this.owner.rotation = this.node.rotation;
+                }
+                
+                //add listeners for directions
+                this.owner.triggerEvent('set-directions');
+                
+                //trigger mapped messages for node types
+                if (this.friendlyNodes && this.friendlyNodes[node.type]) {
+                    this.owner.trigger(this.friendlyNodes[node.type], node);
+                }
+
+                //trigger "with" events
+                entities = node.contains;
+                for (j = 0; j < entities.length; j++) {
+                    if (this.owner !== entities[j]) {
+                        entities[j].triggerEvent("with-" + this.owner.type, this.owner);
+                        this.owner.triggerEvent("with-" + entities[j].type, entities[j]);
+                    }
+                }
+
+                this.owner.triggerEvent('on-node', node);
+            },
+
+            getOffNode: function () {
+                if (this.node) {
+                    this.node.removeFromNode(this.owner);
+                    this.owner.triggerEvent('left-node', this.node);
+                    this.owner.triggerEvent('remove-directions');
+                }
+                this.lastNode = this.node;
+                this.node = null;
+            },
+
             isPassable: function (node) {
                 return node && (this.node !== node) && (!this.friendlyNodes || (typeof this.friendlyNodes[node.type] !== 'undefined')) && (!node.contains.length || isFriendly(node.contains, this.friendlyEntities));
             },
@@ -563,7 +574,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                             node = map.getNode(neighbors[j]);
                             hasNeighbor = true;
                             if (this.isPassable(node)) {
-                                nodeList = record.nodes.greenSlice();
+                                nodeList = greenSlice(record.nodes);
                                 nodeList.push(node);
                                 resp = this.traverseNode({
                                     depth: record.depth - 1,
@@ -579,7 +590,7 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                                     found: false,
                                     blocked: false
                                 });
-                                nodeList.recycle();
+                                arrayCache.recycle(nodeList);
                                 if (resp.found && (savedResp.shortestPath > resp.shortestPath)) {
                                     savedResp = resp;
                                 }
@@ -593,10 +604,10 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
             },
             setPath: function (resp, steps) {
                 if (resp.nodes[0] === this.node) {
-                    resp.nodes.greenSplice(0);
+                    resp.nodes.shift();
                 }
-                this.destinationNodes.recycle();
-                this.destinationNodes = resp.nodes.greenSlice();
+                arrayCache.recycle(this.destinationNodes);
+                this.destinationNodes = greenSlice(resp.nodes);
                 if (steps) {
                     this.destinationNodes.length = Math.min(steps, this.destinationNodes.length);
                 }
@@ -620,10 +631,11 @@ This component connects an entity to its parent's [[NodeMap]]. It manages naviga
                 }
                 this.node.addToEdge(this.owner);
                 toNode.addToEdge(this.owner);
-                this.owner.triggerEvent('leave-node');
+                this.owner.node = null;
             },
             destroy: function () {
-                this.destinationNodes.recycle();
+                arrayCache.recycle(this.destinationNodes);
+                this.destinationNodes = null;
                 this.state = null;
             }
         }

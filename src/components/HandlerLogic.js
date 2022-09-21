@@ -1,16 +1,9 @@
-/**
- * A component that handles updating logic components. Each tick it calls all the entities that accept 'handle-logic' messages. This component is usually used on an "action-layer".
- *
- * @namespace platypus.components
- * @class HandlerLogic
- * @uses platypus.Component
- **/
-/* global include, platypus */
-(function () {
-    'use strict';
+import {arrayCache, greenSplice} from '../utils/array.js';
+import AABB from '../AABB.js';
+import createComponentClass from '../factory.js';
 
-    var AABB = include('platypus.AABB'),
-        addAll = function (all, active) {
+export default (function () {
+    var addAll = function (all, active) {
             var j = all.length;
             
             active.length = 0;
@@ -37,7 +30,7 @@
             return (item === 'handle-logic' || item === 'handle-post-collision-logic' || item === 'prepare-logic' || item === 'state-changed' || item === 'handle-movement');
         };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.HandlerLogic.prototype */{
         id: "HandlerLogic",
         properties: {
             /**
@@ -46,7 +39,6 @@
              * @property alwaysOn
              * @type Boolean
              * @default false
-             * @since 0.7.1
              */
             alwaysOn: false
         },
@@ -79,19 +71,44 @@
             maxStepsPerTick: 100,
             
             /**
-             * Whether logic should occur at an alternate speed. This is useful for simulations where the game should speed up or slow down.
+             * A multiplier that alters the speed at which the game is running. This is achieved by scaling the delta time in each tick.
+             * Defaults to 1. Values < 1 will slow down the logic, > 1 will speed it up.
              *
              * @property timeMultiplier
              * @type number
              * @default 1
-             * @since 0.7.1
              */
             timeMultiplier: 1
         },
+
+        /**
+         * A component that handles updating logic components. Each tick it calls all the entities that accept 'handle-logic' messages. This component is usually used on an "action-layer".
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#camera-update
+         * @listens platypus.Entity#child-entity-added
+         * @listens platypus.Entity#child-entity-removed
+         * @listens platypus.Entity#child-entity-updated
+         * @listens platypus.Entity#pause-logic
+         * @listens platypus.Entity#tick
+         * @listens platypus.Entity#unpause-logic
+         * @fires platypus.Entity#handle-ai
+         * @fires platypus.Entity#handle-logic
+         * @fires platypus.Entity#logic-paused
+         * @fires platypus.Entity#logic-unpaused
+         * @fires platypus.Entity#prepare-logic
+         * @fires platypus.Entity#handle-movement
+         * @fires platypus.Entity#check-collision-group
+         * @fires platypus.Entity#handle-post-collision-logic
+         * @fires platypus.Entity#state-changed
+         */
         initialize: function () {
-            this.entities = Array.setUp();
-            this.activeEntities = Array.setUp();
-            this.removals = Array.setUp();
+            this.entities = arrayCache.setUp();
+            this.activeEntities = arrayCache.setUp();
+            this.removals = arrayCache.setUp();
             
             this.inLogicLoop = false;
 
@@ -114,13 +131,6 @@
         },
         
         events: {
-            /**
-             * Called when an entity has been updated and should be considered for adding to or removing from the handler.
-             *
-             * @method 'child-entity-updated'
-             * @param entity {platypus.Entity} The entity that is being considered.
-             * @since v0.12.0
-             */
             "child-entity-updated": function (entity) {
                 var j = this.entities.indexOf(entity),
                     logical = entity.getMessageIds().some(hasLogic);
@@ -133,19 +143,13 @@
                         this.activeEntities.push(entity);
                     }
                 } else if (!logical && (j >= 0)) {
-                    this.entities.greenSplice(j);
+                    greenSplice(this.entities, j);
                     if (this.inLogicLoop) {
                         this.removals.push(entity);
                     }
                 }
             },
 
-            /**
-             * Called when a new entity has been added and should be considered for addition to the handler. If the entity has a 'handle-logic' message id it's added to the list of entities.
-             *
-             * @method 'child-entity-added'
-             * @param entity {platypus.Entity} The entity that is being considered for addition to the handler.
-             */
             "child-entity-added": function (entity) {
                 if (entity.getMessageIds().some(hasLogic)) {
                     this.entities.push(entity);
@@ -157,30 +161,17 @@
                 }
             },
 
-            /**
-             * Called when an entity should be removed from the list of logically updated entities.
-             *
-             * @method 'child-entity-removed'
-             * @param entity {platypus.Entity} The entity to be removed from the handler.
-             */
             "child-entity-removed": function (entity) {
                 var j = this.entities.indexOf(entity);
                 
                 if (j >= 0) {
-                    this.entities.greenSplice(j);
+                    greenSplice(this.entities, j);
                     if (this.inLogicLoop) {
                         this.removals.push(entity);
                     }
                 }
             },
             
-            /**
-             * When this event is triggered, `handle-logic` messages cease to be triggered on each tick.
-             *
-             * @method 'pause-logic'
-             * @param [options] {Object}
-             * @param [options.time] {number} If set, this will pause the logic for this number of milliseconds. If not set, logic is paused until an `unpause-logic` message is triggered.
-             */
             "pause-logic": function (resp) {
                 if (resp && resp.time) {
                     this.paused = resp.time;
@@ -191,38 +182,24 @@
                     /**
                      * Notifies children entities that logic has been paused.
                      *
-                     * @event 'logic-paused'
-                     * @since 0.8.4
+                     * @event platypus.Entity#logic-paused
                      */
                     this.owner.triggerEventOnChildren('logic-paused');
                 }
             },
             
-            /**
-             * When this event is triggered, `handle-logic` messages begin firing each tick.
-             *
-             * @method 'unpause-logic'
-             */
             "unpause-logic": function () {
                 this.paused = 0;
                 if (this.owner.triggerEventOnChildren) {
                     /**
                      * Notifies children entities that logic has been unpaused.
                      *
-                     * @event 'logic-unpaused'
-                     * @since 0.8.4
+                     * @event platypus.Entity#logic-unpaused
                      */
                     this.owner.triggerEventOnChildren('logic-unpaused');
                 }
             },
             
-            /**
-             * Changes the active logic area when the camera location changes.
-             *
-             * @method 'camera-update'
-             * @param camera {Object}
-             * @param camera.viewport {platypus.AABB} The AABB describing the camera viewport in world units.
-             */
             "camera-update": function (camera) {
                 var buffer = this.buffer,
                     cam = this.camera,
@@ -238,13 +215,6 @@
                 }
             },
             
-            /**
-             * Sends a 'handle-logic' message to all the entities the component is handling. If an entity does not handle the message, it's removed it from the entity list.
-             *
-             * @method 'tick'
-             * @param tick {Object} Tick information that is passed on to children entities via "handle-logic" events.
-             * @param tick.delta {number} The time passed since the last tick.
-             */
             "tick": function (resp) {
                 var i = 0,
                     j = 0,
@@ -253,7 +223,7 @@
                     msg = this.message,
                     actives = this.activeEntities,
                     removals = this.removals,
-                    stepLength = this.stepLength;
+                    stepLength = this.stepLength * this.timeMultiplier;
                 
                 this.leftoverTime += (resp.delta * this.timeMultiplier);
                 cycles = Math.floor(this.leftoverTime / stepLength) || 1;
@@ -267,6 +237,7 @@
         //        this.leftoverTime = Math.max(this.leftoverTime - (cycles * this.stepLength), 0);
         
                 // This makes the frames exact, but varying step numbers between ticks can cause movement to be jerky
+                msg.gameDelta = this.stepLength;
                 msg.delta = stepLength;
                 this.leftoverTime = Math.max(this.leftoverTime - (cycles * stepLength), 0);
         
@@ -290,17 +261,28 @@
                         this.inLogicLoop = true;
                         
                         /**
-                         * This event is triggered on the top-level layer to signify a "handle-logic" event is about to be triggered on children. This is unique from the layer's "tick" event in that it occurs the same number of times as the "handle-logic" event and will not occur if HandlerLogic is paused.
+                         * This event is triggered on the top-level layer to signify a "handle-logic" event is about to be triggered on children, and is then subsequently triggered on all of the layer's child entities. This is unique from the layer's "tick" event in that it occurs the same number of times as the "handle-logic" event and will not occur if HandlerLogic is paused.
                          *
-                         * @event 'logic-tick'
-                         * @param tick.delta {Number} The time that has passed since the last tick.
+                         * @event platypus.Entity#handle-logic
+                         * @param tick.delta {Number} The time that has passed since the last tick as manipulated by the timeMultiplier.
+                         * @param tick.gameDelta {Number} The time that has passed since the last tick. Unmanipulated by timeMultiplier. Use for components that need to run on actual time.
                          * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
                          * @param tick.entities {Array} This is a list of all the logically active entities.
-                         * @since 0.8.1
+                         * @param tick.tick {Object} Tick object from "tick" event.
                          */
-                        this.owner.triggerEvent('logic-tick', msg);
+                        this.owner.triggerEvent('handle-logic', msg);
                     
                         if (this.owner.triggerEventOnChildren) {
+                            /**
+                             * AI components listen in order to perform their logic on each tick.
+                             *
+                             * @event platypus.Entity#handle-ai
+                             * @param tick.delta {Number} The time that has passed since the last tick as manipulated by the timeMultiplier.
+                             * @param tick.gameDelta {Number} The time that has passed since the last tick. Unmanipulated by timeMultiplier. Use for components that need to run on actual time.
+                             * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
+                             * @param tick.entities {Array} This is a list of all the logically active entities.
+                             * @param tick.tick {Object} Tick object from "tick" event.
+                             */
                             this.owner.triggerEventOnChildren('handle-ai', msg);
                         }
 
@@ -311,35 +293,24 @@
                             /**
                              * This event is triggered on children entities to run anything that should occur before "handle-logic". For example, removing or adding components should happen here and not in "handle-logic".
                              *
-                             * @event 'prepare-logic'
+                             * @event platypus.Entity#prepare-logic
                              * @param tick {Object}
                              * @param tick.delta {Number} The time that has passed since the last tick.
                              * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
                              * @param tick.entities {Array} This is a list of all the logically active entities.
-                             * @since 0.6.8
                              */
                             entity.triggerEvent('prepare-logic', msg);
 
-                            /**
-                             * This event is triggered on children entities to run their logic.
-                             *
-                             * @event 'handle-logic'
-                             * @param tick {Object}
-                             * @param tick.delta {Number} The time that has passed since the last tick.
-                             * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
-                             * @param tick.entities {Array} This is a list of all the logically active entities.
-                             */
                             entity.triggerEvent('handle-logic', msg);
 
                             /**
                              * This event is triggered on children entities to move. This happens immediately after logic so entity logic can determine movement.
                              *
-                             * @event 'handle-movement'
+                             * @event platypus.Entity#handle-movement
                              * @param tick {Object}
                              * @param tick.delta {Number} The time that has passed since the last tick.
                              * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
                              * @param tick.entities {Array} This is a list of all the logically active entities.
-                             * @since 0.6.8
                              */
                             entity.triggerEvent('handle-movement', msg);
                         }
@@ -351,7 +322,7 @@
                             while (i--) {
                                 j = actives.indexOf(removals[i]);
                                 if (j >= 0) {
-                                    actives.greenSplice(j);
+                                    greenSplice(actives, j);
                                 }
                             }
                             removals.length = 0;
@@ -361,7 +332,7 @@
                         /**
                          * This event is triggered on the entity (layer) to test collisions once logic has been completed.
                          *
-                         * @event 'check-collision-group'
+                         * @event platypus.Entity#check-collision-group
                          * @param tick {Object}
                          * @param tick.delta {Number} The time that has passed since the last tick.
                          * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
@@ -371,7 +342,7 @@
                             /**
                              * This event is triggered on entities to run logic that may depend upon collision responses.
                              *
-                             * @event 'handle-post-collision-logic'
+                             * @event platypus.Entity#handle-post-collision-logic
                              * @param tick {Object}
                              * @param tick.delta {Number} The time that has passed since the last tick.
                              * @param tick.camera {null|platypus.AABB} The range of the logic camera area. This is typically larger than the visible camera. This value is `null` if `alwaysOn` is set to `true` on this component.
@@ -381,7 +352,7 @@
                             /**
                              * Triggered on entities when the entity's state has been changed.
                              *
-                             * @event 'state-changed'
+                             * @event platypus.Entity#state-changed
                              * @param state {Object} A list of key/value pairs representing the owner's state (this value equals `entity.state`).
                              */
                             while (i--) {
@@ -406,9 +377,12 @@
         
         methods: {
             destroy: function () {
-                this.entities.recycle();
-                this.activeEntities.recycle();
-                this.removals.recycle();
+                arrayCache.recycle(this.entities);
+                this.entities = null;
+                arrayCache.recycle(this.activeEntities);
+                this.activeEntities = null;
+                arrayCache.recycle(this.removals);
+                this.removals = null;
             }
         }
     });

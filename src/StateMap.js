@@ -1,19 +1,19 @@
-/**
- * This class defines a state object to use for entity states with helper methods. It includes recycle methods to encourage reuse.
- *
- * @namespace platypus
- * @class StateMap
- * @constructor
- * @return stateMap {platypus.StateMap} Returns the new StateMap object.
- * @extends platypus.DataMap
- * @since 0.8.0
- */
-/* global extend, include, platypus, recycle, springroll */
-platypus.StateMap = (function () {
-    'use strict';
-    
-    var DataMap = include('platypus.DataMap'),
-        StateMap = function (first) {
+import DataMap from './DataMap.js';
+import {arrayCache} from './utils/array.js';
+import config from 'config';
+import {greenSplit} from './utils/string.js';
+import recycle from 'recycle';
+
+export default (function () {
+    /**
+     * This class defines a state object to use for entity states with helper methods. It includes recycle methods to encourage reuse.
+     *
+     * @memberof platypus
+     * @class StateMap
+     * @extends platypus.DataMap
+     * @return stateMap {platypus.StateMap} Returns the new StateMap object.
+     */
+    var StateMap = function (first) {
             var l = arguments.length;
             
             if (l) {
@@ -27,7 +27,14 @@ platypus.StateMap = (function () {
                 DataMap.call(this);
             }
         },
-        proto = extend(StateMap, DataMap);
+        parent = DataMap.prototype,
+        proto = StateMap.prototype = Object.create(parent);
+
+    Object.defineProperty(StateMap.prototype, 'constructor', {
+        configurable: true,
+        writable: true,
+        value: StateMap
+    });
         
     /**
      * Sets the state using the provided string value which is a comma-delimited list such that `"blue,red,!green"` sets the following state values:
@@ -38,13 +45,13 @@ platypus.StateMap = (function () {
      *          green: false
      *      }
      *
-     * @method updateFromString
+     * @method platypus.StateMap#updateFromString
      * @param states {String} A comma-delimited list of true/false state values.
      * @chainable
      */
     Object.defineProperty(proto, 'updateFromString', {
         value: function (states) {
-            var arr = states.greenSplit(','),
+            var arr = greenSplit(states, ','),
                 i = arr.length,
                 str = '';
             
@@ -59,7 +66,7 @@ platypus.StateMap = (function () {
                 }
             }
             
-            arr.recycle();
+            arrayCache.recycle(arr);
             
             return this;
         }
@@ -68,7 +75,7 @@ platypus.StateMap = (function () {
     /**
      * Checks whether the provided state matches this state and updates this state to match.
      *
-     * @method update
+     * @method platypus.StateMap#update
      * @param state {platypus.StateMap} The state that this state should match.
      * @return {Boolean} Whether this state already matches the provided state.
      */
@@ -96,7 +103,7 @@ platypus.StateMap = (function () {
     /**
      * Checks whether the provided state matches all equivalent keys on this state.
      *
-     * @method includes
+     * @method platypus.StateMap#includes
      * @param state {platypus.StateMap} The state that this state should match.
      * @return {Boolean} Whether this state matches the provided state.
      */
@@ -120,7 +127,7 @@ platypus.StateMap = (function () {
     /**
      * Checks whether the provided state matches any equivalent keys on this state.
      *
-     * @method intersects
+     * @method platypus.StateMap#intersects
      * @param state {platypus.StateMap} The state that this state should intersect.
      * @return {Boolean} Whether this state intersects the provided state.
      */
@@ -144,24 +151,23 @@ platypus.StateMap = (function () {
     /**
      * Returns StateMap from cache or creates a new one if none are available.
      *
-     * @method StateMap.setUp
-     * @return stateMap {platypus.StateMap} The instantiated StateMap.
+     * @method platypus.StateMap.setUp
+     * @return {platypus.StateMap} The instantiated StateMap.
      */
     /**
      * Returns StateMap back to the cache. Prefer the StateMap's recycle method since it recycles property objects as well.
      *
-     * @method StateMap.recycle
-     * @param stateMap {platypus.StateMap} The StateMap to be recycled.
+     * @method platypus.StateMap.recycle
+     * @param {platypus.StateMap} stateMap The StateMap to be recycled.
      */
     /**
      * Relinquishes StateMap properties and recycles it.
      *
-     * @method recycle
+     * @method platypus.StateMap#recycle
      */
-    recycle.add(StateMap, !!springroll.Debug, 'StateMap', function () {
+    recycle.add(StateMap, 'StateMap', StateMap, function () {
         this.clear();
-        StateMap.recycle(this);
-    });
+    }, true, config.dev);
     
     return StateMap;
 }());

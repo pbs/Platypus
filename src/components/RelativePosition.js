@@ -1,17 +1,8 @@
-/**
- * This component positions an entity relative to the camera viewport, according to `left`, `top`, `right`, and `left` properties.
- *
- * @class RelativePosition
- * @uses platypus.Component
- * @since 1.0.0
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var AABB = include('platypus.AABB');
+import AABB from '../AABB.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.RelativePosition.prototype */{
         
         id: 'RelativePosition',
 
@@ -44,7 +35,7 @@
              * @type Number
              * @default null
              */
-            "bottom": null,
+            bottom: null,
 
             /**
              * This sets the distance in world units from the left of the camera's world viewport. If set, it will override the entity's x coordinate. This property is accessible on the entity as `entity.left`.
@@ -53,7 +44,7 @@
              * @type Number
              * @default null
              */
-            "left": null,
+            left: null,
 
             /**
              * This sets the distance in world units from the right of the camera's world viewport. If set, it will override the entity's x coordinate. This property is accessible on the entity as `entity.right`.
@@ -62,7 +53,7 @@
              * @type Number
              * @default null
              */
-            "right": null,
+            right: null,
 
             /**
              * This sets the distance in world units from the top of the camera's world viewport. If set, it will override the entity's y coordinate. This property is accessible on the entity as `entity.top`.
@@ -71,7 +62,25 @@
              * @type Number
              * @default null
              */
-            "top": null,
+            top: null,
+
+            /**
+             * This sets the scale in X of the entity.
+             *
+             * @property scaleX
+             * @type Number
+             * @default 1
+             */
+            scaleX: 1,
+
+            /**
+             * This sets the scale in Y of the entity.
+             *
+             * @property scaleY
+             * @type Number
+             * @default 1
+             */
+            scaleY: 1,
 
             /**
              * This sets the `x` coordinate for the entity. It is overridden by `left` and `right` properties if supplied.
@@ -80,7 +89,7 @@
              * @type Number
              * @default 0
              */
-            "x": 0,
+            x: 0,
 
             /**
              * This sets the `y` coordinate for the entity. It is overridden by `top` and `bottom` properties if supplied.
@@ -89,9 +98,18 @@
              * @type Number
              * @default 0
              */
-            "y": 0
+            y: 0
         },
         
+        /**
+         * This component positions an entity relative to the camera viewport, according to `left`, `top`, `right`, and `left` properties.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#camera-update
+         * @listens platypus.Entity#handle-logic
+         */
         initialize: function (/*definition, callback*/) {
             this.aabb = AABB.setUp();
             this.lastBottom = null;
@@ -101,12 +119,7 @@
             this.cameraSizesIndex = -1;
         },
 
-        events: {// These are messages that this component listens for
-            /**
-             * This component uses location updates to reposition the entity if its bottom, left, right, or top properties have been set.
-             *
-             * @method 'handle-logic'
-             */
+        events: {
             "handle-logic": function () {
                 var bottom = this.bottom,
                     left = this.left,
@@ -122,14 +135,6 @@
                 }
             },
 
-            /**
-             * This component listens for camera updates to reposition the entity if its bottom, left, right, or top properties have been set.
-             *
-             * @method 'camera-update'
-             * @param camera {platypus.Data} Camera update information
-             * @param camera.viewport {platypus.AABB} The bounding box describing the camera viewport location in the world.
-             * @since 0.9.0
-             */
             "camera-update": function (camera) {
                 this.aabb.set(camera.viewport);
                 if (this.cameraSizes) {
@@ -166,6 +171,12 @@
                 }
                 if (typeof props.y === 'number') {
                     this.y = props.y;
+                }
+                if (typeof props.scaleX === 'number') {
+                    this.scaleX = props.scaleX;
+                }
+                if (typeof props.scaleY === 'number') {
+                    this.scaleY = props.scaleY;
                 }
             },
 

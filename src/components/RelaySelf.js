@@ -1,21 +1,20 @@
 /**
  * This component listens for specified local entity messages and re-broadcasts them on itself as other messages.
  *
- * @namespace platypus.components
+ * @memberof platypus.components
  * @class RelaySelf
  * @uses platypus.Component
  */
-/*global platypus */
-(function () {
-    'use strict';
-    
+import createComponentClass from '../factory.js';
+
+export default (function () {
     var trigger = function () {
         var owner = this.owner;
         
         owner.trigger.apply(owner, arguments);
     };
 
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.RelaySelf.prototype */{
         id: 'RelaySelf',
         
         properties: {

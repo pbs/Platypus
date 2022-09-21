@@ -1,16 +1,12 @@
-/**
- * This component sets up a NodeMap to be used by the [NodeResident](platypus.components.NodeResident.html) component on this entity's child entities.
- *
- * @namespace platypus.components
- * @class NodeMap
- * @uses platypus.Component
- */
-/* global include, platypus, recycle, springroll */
-(function () {
-    'use strict';
-    
-    var Vector = include('platypus.Vector'),
-        Node = function (definition, map) { // This is a basic node object, but can be replaced by entities having a `Node` component if more functionality is needed.
+import {arrayCache, greenSplice} from '../utils/array.js';
+import Entity from '../Entity.js';
+import Vector from '../Vector.js';
+import config from 'config';
+import createComponentClass from '../factory.js';
+import recycle from 'recycle';
+
+export default (function () {
+    var Node = function (definition, map) { // This is a basic node object, but can be replaced by entities having a `Node` component if more functionality is needed.
             if (definition.id) {
                 if (typeof definition.id === 'string') {
                     this.id = definition.id;
@@ -25,8 +21,12 @@
 
             this.isNode = true;
             this.map = map;
-            this.contains = Array.setUp();
+            this.contains = arrayCache.setUp();
             this.type = definition.type || '';
+
+            if (!this.position) {
+                Vector.assign(this, 'position', 'x', 'y', 'z');
+            }
             this.x = definition.x || 0;
             this.y = definition.y || 0;
             this.z = definition.z || 0;
@@ -78,20 +78,17 @@
         
         for (i = 0; i < this.contains.length; i++) {
             if (this.contains[i] === entity) {
-                return this.contains.greenSplice(i);
+                return greenSplice(this.contains, i);
             }
         }
         return false;
     };
     
-    proto.recycle = function () {
-        this.contains.recycle();
-        this.recycle();
-    };
+    recycle.add(Node, 'Node', Node, function () {
+        arrayCache.recycle(this.contains);
+    }, true, config.dev);
     
-    recycle.add(Node, !!springroll.Debug, 'Node');
-    
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.NodeMap.prototype */{
         id: 'NodeMap',
         
         publicProperties: {
@@ -123,13 +120,23 @@
             map: []
         },
         
+        /**
+         * This component sets up a NodeMap to be used by the [NodeResident](platypus.components.NodeResident.html) component on this entity's child entities.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#add-node
+         * @listens platypus.Entity#child-entity-added
+         * @fires platypus.Entity#add-node
+         */
         initialize: function () {
             var i   = 0,
                 map = this.map;
             
-            this.map   = Array.setUp(); // Original map is node definitions, so we replace it with actual nodes.
+            this.map   = arrayCache.setUp(); // Original map is node definitions, so we replace it with actual nodes.
             this.nodes = {};
-            this.residentsAwaitingNode = Array.setUp();
+            this.residentsAwaitingNode = arrayCache.setUp();
             
             for (i = 0; i < map.length; i++) {
                 this.addNode(Node.setUp(map[i], this));
@@ -137,18 +144,6 @@
         },
 
         events: {
-            /**
-             * Expects a node definition to create a node in the NodeMap.
-             *
-             * @method 'add-node'
-             * @param definition {Object} Key/value pairs.
-             * @param definition.nodeId {String|Array} This value becomes the id of the Node. Arrays are joined using "|" to create the id string.
-             * @param definition.type {String} This determines the type of the node.
-             * @param definition.x {String} Sets the x axis position of the node.
-             * @param definition.y {String} Sets the y axis position of the node.
-             * @param definition.z {String} Sets the z axis position of the node.
-             * @param definition.neighbors {Object} A list of key/value pairs where the keys are directions from the node and values are node ids. For example: {"west": "node12"}.
-             */
             "add-node": function (nodeDefinition) {
                 var i = 0,
                     entity = null,
@@ -166,28 +161,31 @@
                 for (i = this.residentsAwaitingNode.length - 1; i >= 0; i--) {
                     entity = this.residentsAwaitingNode[i];
                     if (node.id === entity.nodeId) {
-                        this.residentsAwaitingNode.greenSplice(i);
+                        greenSplice(this.residentsAwaitingNode, i);
                         entity.node = this.getNode(entity.nodeId);
-                        entity.triggerEvent('on-node', entity.node);
                     }
                 }
             },
 
-            /**
-             * Checks the child entity for a nodeId and if found adds the child to the corresponding node.
-             *
-             * @method 'child-entity-added'
-             * @param entity {platypus.Entity} The entity that may be placed on a node, or if the entity is a node it is added to the map of nodes.
-             */
             "child-entity-added": function (entity) {
                 if (entity.isNode) {        // a node
+                    /**
+                     * Expects a node definition to create a node in the NodeMap.
+                     *
+                     * @event platypus.Entity#add-node
+                     * @param definition {Object} Key/value pairs.
+                     * @param definition.nodeId {String|Array} This value becomes the id of the Node. Arrays are joined using "|" to create the id string.
+                     * @param definition.type {String} This determines the type of the node.
+                     * @param definition.x {String} Sets the x axis position of the node.
+                     * @param definition.y {String} Sets the y axis position of the node.
+                     * @param definition.z {String} Sets the z axis position of the node.
+                     * @param definition.neighbors {Object} A list of key/value pairs where the keys are directions from the node and values are node ids. For example: {"west": "node12"}.
+                     */
                     this.owner.triggerEvent('add-node', entity);
                 } else if (entity.nodeId) { // a NodeResident
                     entity.node = this.getNode(entity.nodeId);
                     if (!entity.node) {
                         this.residentsAwaitingNode.push(entity);
-                    } else {
-                        entity.triggerEvent('on-node', entity.node);
                     }
                 }
             }
@@ -204,13 +202,13 @@
                 
                 // Destroy simple node objects.
                 for (i = 0; i < this.map.length; i++) {
-                    if (!(this.map[i] instanceof platypus.Entity)) {
+                    if (!(this.map[i] instanceof Entity)) {
                         this.map[i].recycle();
                     }
                 }
                 
-                this.map.recycle();
-                this.residentsAwaitingNode.recycle();
+                arrayCache.recycle(this.map);
+                arrayCache.recycle(this.residentsAwaitingNode);
             }
         },
         
@@ -218,7 +216,7 @@
             /**
              * Gets a node by node id.
              *
-             * @method getNode
+             * @method platypus.components.NodeMap#getNode
              * @param id {String|Array|Node} This id of the node to retrieve. If an array or more than one parameter is supplied, values are concatenated with "|" to create a single string id. Supplying a node returns the same node (useful for processing a mixed list of nodes and node ids).
              */
             getNode: function () {
@@ -246,7 +244,7 @@
             /**
              * Finds the closest node to a given point, with respect to any inclusion or exclusion lists.
              *
-             * method getClosestNode
+             * @method platypus.components.NodeMap#getClosestNode
              * @param point {platypus.Vector} A location for which a closest node is being found.
              * @param [including] {Array} A list of nodes to include in the search. If not set, the entire map is searched.
              * @param [excluding] {Array} A list of nodes to exclude from the search.

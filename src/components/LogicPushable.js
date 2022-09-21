@@ -1,23 +1,4 @@
 /**
-# COMPONENT **LogicPushable**
-A component that enables an entity to be pushed.
-
-## Dependencies
-- [[HandlerLogic]] (on entity's parent) - This component listens for a "handle-logic" message. It then moves the entity if it's being pushed.
-- [[CollisionBasic]] (on entity) - This component listens for messages from the CollisionBasic component. In particular 'hit-solid' and 'push-entity' are coming from collision.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - Checks to see if we're being pushed. If so, we get pushed. Then resets values.
-  - @param resp.delta (number) - The time since the last tick.
-- **push-entity** - Received when we collide with an object that can push us. We resolve which side we're colliding on and set up the currentPushX and currentPushY values so we'll move on the handle-logic call.
-  - @param collisionInfo.x (number) - Either 1,0, or -1. 1 if we're colliding with an object on our right. -1 if on our left. 0 if not at all.
-  - @param collisionInfo.y (number) - Either 1,0, or -1. 1 if we're colliding with an object on our bottom. -1 if on our top. 0 if not at all.
-- **hit-solid** - Called when the entity collides with a solid object. Stops the object from being pushed further in that direction.
-  - @param collisionInfo.x (number) - Either 1,0, or -1. 1 if we're colliding with an object on our right. -1 if on our left. 0 if not at all.
-  - @param collisionInfo.y (number) - Either 1,0, or -1. 1 if we're colliding with an object on our bottom. -1 if on our top. 0 if not at all.
-
 ## JSON Definition
     {
       "type": "LogicPushable",
@@ -29,17 +10,27 @@ A component that enables an entity to be pushed.
       //Optional - The distance per millisecond this object can be pushed in x and y. Overwritten by the more specific values xPush and yPush. Defaults to .01.
     }
 */
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
 
-/* global platypus */
-(function () {
-    'use strict';
-
+export default (function () {
     var setMagnitude = function (direction, magnitude) {
         return (direction / Math.abs(direction)) * magnitude;
     };
     
-    return platypus.createComponentClass({
+    return createComponentClass(/** @lends platypus.components.LogicPushable.prototype */{
         id: 'LogicPushable',
+
+        /**
+         * A component that enables an entity to be pushed.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#hit-solid
+         */
         initialize: function (definition) {
             this.yPush = definition.push || definition.yPush || 0;
             this.xPush = definition.push || definition.xPush || 0.1;
@@ -53,8 +44,9 @@ A component that enables an entity to be pushed.
             this.currentPushY = 0;
             this.lastX = this.owner.x;
             this.lastY = this.owner.y;
-            this.pushers = Array.setUp();
+            this.pushers = arrayCache.setUp();
         },
+
         events: {
             "handle-logic": function (resp) {
                 var i = 0,
@@ -102,7 +94,7 @@ A component that enables an entity to be pushed.
         
         methods: {
             destroy: function () {
-                this.pushers.recycle();
+                arrayCache.recycle(this.pushers);
             }
         }
     });

@@ -1,28 +1,32 @@
-/**
- * This component groups other entities with this entity for collision checking. This is useful for carrying and moving platforms. It uses `EntityContainer` component messages if triggered to add to its collision list and also listens for explicit add/remove messages (useful in the absence of an `EntityContainer` component).
- *
- * @namespace platypus.components
- * @class CollisionGroup
- * @uses platypus.Component
- */
-/* global include, platypus */
-(function () {
-    'use strict';
+import {arrayCache, greenSplice, union} from '../utils/array.js';
+import AABB from '../AABB.js';
+import DataMap from '../DataMap.js';
+import Vector from '../Vector.js';
+import createComponentClass from '../factory.js';
 
-    var AABB = include('platypus.AABB'),
-        DataMap = include('platypus.DataMap'),
-        Vector = include('platypus.Vector');
-    
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.CollisionGroup.prototype */{
         id: 'CollisionGroup',
         
+        /**
+         * This component groups other entities with this entity for collision checking. This is useful for carrying and moving platforms. It uses `EntityContainer` component messages if triggered to add to its collision list and also listens for explicit add/remove messages (useful in the absence of an `EntityContainer` component).
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#add-collision-entity
+         * @listens platypus.Entity#child-entity-added
+         * @listens platypus.Entity#child-entity-removed
+         * @listens platypus.Entity#relocate-entity
+         * @listens platypus.Entity#remove-collision-entity
+         */
         initialize: function () {
-            this.solidEntities = Array.setUp();
+            this.solidEntities = arrayCache.setUp();
             
             // These are used as return values for methods, but are instantiated here for recycling later.
-            this.collisionTypes = Array.setUp();
-            this.shapes = Array.setUp();
-            this.prevShapes = Array.setUp();
+            this.collisionTypes = arrayCache.setUp();
+            this.shapes = arrayCache.setUp();
+            this.prevShapes = arrayCache.setUp();
             
             this.terrain  = null;
             this.aabb     = AABB.setUp(this.owner.x, this.owner.y);
@@ -89,51 +93,22 @@
         },
         
         events: {
-            /**
-             * On receiving this message, the component checks the entity to determine whether it listens for collision messages. If so, the entity is added to the collision group.
-             *
-             * @method 'child-entity-added'
-             * @param entity {platypus.Entity} The entity to be added.
-             */
             "child-entity-added": function (entity) {
                 this.addCollisionEntity(entity);
             },
             
-            /**
-             * On receiving this message, the component checks the entity to determine whether it listens for collision messages. If so, the entity is added to the collision group.
-             *
-             * @method 'add-collision-entity'
-             * @param entity {platypus.Entity} The entity to be added.
-             */
             "add-collision-entity": function (entity) {
                 this.addCollisionEntity(entity);
             },
             
-            /**
-             * On receiving this message, the component looks for the entity in its collision group and removes it.
-             *
-             * @method 'child-entity-removed'
-             * @param entity {platypus.Entity} The entity to be removed.
-             */
             "child-entity-removed": function (entity) {
                 this.removeCollisionEntity(entity);
             },
             
-            /**
-             * On receiving this message, the component looks for the entity in its collision group and removes it.
-             *
-             * @method 'remove-collision-entity'
-             * @param entity {platypus.Entity} The entity to be removed.
-             */
             "remove-collision-entity": function (entity) {
                 this.removeCollisionEntity(entity);
             },
             
-            /**
-             * When this message is triggered, the collision group updates its record of the owner's last (x, y) coordinate.
-             *
-             * @method 'relocate-entity'
-             */
             "relocate-entity": function () {
                 this.owner.previousPosition.setVector(this.owner.position);
                 this.updateAABB();
@@ -167,7 +142,7 @@
                         if (entity.solidCollisionMap.get(types[i]).length) {
                             x = this.solidEntities.indexOf(entity);
                             if (x >= 0) {
-                                this.solidEntities.greenSplice(x);
+                                greenSplice(this.solidEntities, x);
                             }
                         }
                     }
@@ -188,7 +163,7 @@
                     if ((childEntity !== this.owner) && childEntity.collisionGroup) {
                         childEntity = childEntity.collisionGroup;
                     }
-                    compiledList.union(childEntity.getCollisionTypes());
+                    union(compiledList, childEntity.getCollisionTypes());
                 }
                 
                 return compiledList;
@@ -221,9 +196,9 @@
                         toList = compiledList.get(key);
                         fromList = entityList.get(key);
                         if (!toList) {
-                            toList = compiledList.set(key, Array.setUp());
+                            toList = compiledList.set(key, arrayCache.setUp());
                         }
-                        toList.union(fromList);
+                        union(toList, fromList);
                         if (recycle) {
                             fromList.recycle();
                         }
@@ -318,7 +293,7 @@
                     }
                     newShapes = childEntity.getShapes(collisionType);
                     if (newShapes) {
-                        shapes.union(newShapes);
+                        union(shapes, newShapes);
                     }
                 }
                 return shapes;
@@ -339,7 +314,7 @@
                     }
                     newShapes = childEntity.getPrevShapes(collisionType);
                     if (newShapes) {
-                        shapes.union(newShapes);
+                        union(shapes, newShapes);
                     }
                 }
                 return shapes;
@@ -427,10 +402,10 @@
             },
 
             destroy: function () {
-                this.solidEntities.recycle();
-                this.collisionTypes.recycle();
-                this.shapes.recycle();
-                this.prevShapes.recycle();
+                arrayCache.recycle(this.solidEntities);
+                arrayCache.recycle(this.collisionTypes);
+                arrayCache.recycle(this.shapes);
+                arrayCache.recycle(this.prevShapes);
                 this.aabb.recycle();
                 this.prevAABB.recycle();
                 this.filteredAABB.recycle();
@@ -441,7 +416,7 @@
             /**
              * Gets the bounding box of the group of entities.
              *
-             * @method getCollisionGroupAABB
+             * @method platypus.components.CollisionGroup#getCollisionGroupAABB
              * @return platypus.AABB
              */
             getCollisionGroupAABB: function () {
@@ -451,7 +426,7 @@
             /**
              * Gets a list of all the entities in the world.
              *
-             * @method getWorldEntities
+             * @method platypus.components.CollisionGroup#getWorldEntities
              * @return Array
              */
             getWorldEntities: function () {
@@ -461,7 +436,7 @@
             /**
              * Gets the collision entity representing the world's terrain.
              *
-             * @method getWorldTerrain
+             * @method platypus.components.CollisionGroup#getWorldTerrain
              * @return platypus.Entity
              */
             getWorldTerrain: function () {

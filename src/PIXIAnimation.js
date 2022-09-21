@@ -1,34 +1,20 @@
-/**
- * This class plays animation sequences of frames and mimics the syntax required for creating CreateJS Sprites, allowing CreateJS Sprite Sheet definitions to be used with pixiJS.
- *
- * @class PIXIAnimation
- * @extends PIXI.Sprite
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
+/*global platypus */
+import {AnimatedSprite, BaseTexture, Container, Point, Rectangle, Sprite, Texture} from 'pixi.js';
+import {arrayCache, greenSlice} from './utils/array.js';
+import Data from './Data.js';
+
+export default (function () {
     var MAX_KEY_LENGTH_PER_IMAGE = 128,
-        BaseTexture = include('PIXI.BaseTexture'),
-        CanvasTinter = include('PIXI.CanvasTinter'),
-        Data = include('platypus.Data'),
-        Point = include('PIXI.Point'),
-        Rectangle = include('PIXI.Rectangle'),
-        Sprite = include('PIXI.Sprite'),
-        Texture = include('PIXI.Texture'),
         animationCache = {},
         baseTextureCache = {},
         doNothing = function () {},
-        emptyFrame = {
-            texture: Texture.EMPTY,
-            anchor: new Point(0, 0)
-        },
+        emptyFrame = Texture.EMPTY,
         regex = /[\[\]{},-]/g,
         getBaseTextures = function (images) {
             var i = 0,
-                bts = Array.setUp(),
+                bts = arrayCache.setUp(),
                 asset = null,
-                assetCache = platypus.game.app.assetManager.cache,
+                assetCache = platypus.assetCache,
                 btCache = baseTextureCache,
                 path = null;
             
@@ -36,7 +22,7 @@
                 path = images[i];
                 if (typeof path === 'string') {
                     if (!btCache[path]) {
-                        asset = assetCache.read(path);
+                        asset = assetCache.get(path);
                         if (!asset) {
                             platypus.debug.warn('"' + path + '" is not a loaded asset.');
                             break;
@@ -69,7 +55,7 @@
             return spriteSheet.id;
         },
         getDefaultAnimation = function (length, textures) {
-            var frames = Array.setUp(),
+            var frames = arrayCache.setUp(),
                 i = 0;
             
             for (i = 0; i < length; i++) {
@@ -92,7 +78,7 @@
             for (key in def) {
                 if (def.hasOwnProperty(key)) {
                     animation = def[key];
-                    frames = animation.frames.greenSlice();
+                    frames = greenSlice(animation.frames);
                     i = frames.length;
                     while (i--) {
                         frames[i] = textures[frames[i]] || emptyFrame;
@@ -119,18 +105,13 @@
                 frame    = null,
                 frames   = spriteSheet.frames,
                 images   = spriteSheet.images,
-                texture  = null,
-                textures = Array.setUp(),
+                textures = arrayCache.setUp(),
                 bases    = getBaseTextures(images);
 
             // Set up texture for each frame
             for (i = 0; i < frames.length; i++) {
                 frame = frames[i];
-                texture = new Texture(bases[frame[4]], new Rectangle(frame[0], frame[1], frame[2], frame[3]));
-                textures.push({
-                    texture: texture,
-                    anchor: new Point((frame[5] || 0) / texture.width, (frame[6] || 0) / texture.height)
-                });
+                textures.push(new Texture(bases[frame[4]], new Rectangle(frame[0], frame[1], frame[2], frame[3]), null, null, 0, new Point((frame[5] || 0) / frame[2], (frame[6] || 0) / frame[3])));
             }
 
             // Set up animations
@@ -141,7 +122,7 @@
                 anims.default = getDefaultAnimation(textures.length, textures);
             }
             
-            bases.recycle();
+            arrayCache.recycle(bases);
             
             return Data.setUp(
                 "textures", textures,
@@ -154,24 +135,19 @@
                 frame    = null,
                 frames   = spriteSheet.frames,
                 images   = spriteSheet.images,
-                texture  = null,
-                textures = Array.setUp(),
+                textures = arrayCache.setUp(),
                 bases    = getBaseTextures(images);
 
             // Set up texture for each frame
             for (i = 0; i < frames.length; i++) {
                 frame = frames[i];
-                texture = new Texture(bases[frame[4]], new Rectangle(frame[0], frame[1], frame[2], frame[3]));
-                textures.push({
-                    texture: texture,
-                    anchor: new Point((frame[5] || 0) / texture.width, (frame[6] || 0) / texture.height)
-                });
+                textures.push(new Texture(bases[frame[4]], new Rectangle(frame[0], frame[1], frame[2], frame[3]), null, null, 0, new Point((frame[5] || 0) / frame[2], (frame[6] || 0) / frame[3])));
             }
 
             // Set up animations
             anims = standardizeAnimations(spriteSheet.animations, textures);
 
-            bases.recycle();
+            arrayCache.recycle(bases);
             
             return Data.setUp(
                 "textures", textures,
@@ -180,12 +156,20 @@
                 "cacheId", cacheId
             );
         },
+        /**
+         * This class plays animation sequences of frames and mimics the syntax required for creating CreateJS Sprites, allowing CreateJS Sprite Sheet definitions to be used with PixiJS.
+         *
+         * @memberof platypus
+         * @class PIXIAnimation
+         * @param {Object} spriteSheet JSON sprite sheet definition.
+         * @param {string} animation The name of the animation to start playing.
+         */
         PIXIAnimation = function (spriteSheet, animation) {
             var FR = 60,
                 cacheId = getTexturesCacheId(spriteSheet),
                 cache = (cacheId ? animationCache[cacheId] : null),
                 speed = (spriteSheet.framerate || FR) / FR;
-            
+
             if (!cacheId) {
                 cache = getAnimations(spriteSheet);
             } else if (!cache) {
@@ -195,13 +179,31 @@
                 cache.viable += 1;
                 this.cacheId = cacheId;
             }
-            
-            Sprite.call(this, cache.textures[0].texture);
+
+            Container.call(this); //, cache.textures[0].texture
         
             /**
             * @private
             */
-            this._animations = cache.animations;
+            this._animations = {};
+            for (const key in cache.animations) {
+                if (cache.animations[key].frames.length === 1) {
+                    this._animations[key] = new Sprite(cache.animations[key].frames[0]);
+                } else {
+                    const anim = this._animations[key] = new AnimatedSprite(cache.animations[key].frames);
+
+                    anim.animationSpeed = speed * cache.animations[key].speed;
+                    anim.onComplete = anim.onLoop = function (animation, properties) {
+                        if (this.onComplete) {
+                            this.onComplete(animation);
+                        }
+                        if (properties.next) {
+                            this.gotoAndPlay(properties.next);
+                        }
+                    }.bind(this, key, cache.animations[key]);
+                    anim.updateAnchor = true;
+                }
+            }
             
             this._animation = null;
         
@@ -219,17 +221,8 @@
              * @property currentAnimation
              * @default ""
              * @type String
-             * @since 0.9.2
              */
             this.currentAnimation = null;
-        
-            /**
-            * Elapsed time since animation has been started, used internally to display current texture
-            *
-            * @member {number}
-            * @private
-            */
-            this._currentTime = 0;
         
             /**
             * Indicates if the PIXIAnimation is currently playing
@@ -250,23 +243,18 @@
             this.update = doNothing;
 
             // Set up initial playthrough.
-            if (cache.textures.length < 2) {
-                this.gotoAndStop(animation);
-            } else {
-                this.gotoAndPlay(animation);
-            }
+            this.gotoAndPlay(animation);
         },
-        prototype = PIXIAnimation.prototype = Object.create(Sprite.prototype);
+        prototype = PIXIAnimation.prototype = Object.create(Container.prototype);
     
     PIXIAnimation.prototype.constructor = PIXIAnimation;
-    platypus.PIXIAnimation = PIXIAnimation;
     
     Object.defineProperties(prototype, {
         /**
         * The visibility of the sprite.
         *
         * @property visible
-        * @memberof PIXI.DisplayObject#
+        * @memberof platypus.PIXIAnimation.prototype
         */
         visible: {
             get: function () {
@@ -274,21 +262,6 @@
             },
             set: function (value) {
                 this._visible = value;
-                this._syncUpdate();
-            }
-        },
-        
-       /**
-        * The PIXIAnimations current frame index
-        *
-        * @member {number}
-        * @memberof platypus.PIXIAnimation#
-        * @readonly
-        */
-        currentFrame: {
-            get: function () {
-                var frames = this._animation.frames;
-                return frames[Math.floor(this._currentTime) % frames.length];
             }
         },
         
@@ -296,6 +269,7 @@
         * The PIXIAnimations paused state. If paused, the animation doesn't update.
         *
         * @property paused
+        * @memberof platypus.PIXIAnimation.prototype
         */
         paused: {
             get: function () {
@@ -304,7 +278,6 @@
             set: function (value) {
                 if ((value && this.playing) || (!value && !this.playing)) {
                     this.playing = !value;
-                    this._syncUpdate();
                 }
             }
         }
@@ -314,6 +287,7 @@
     /**
     * Stops the PIXIAnimation
     *
+    * @method platypus.PIXIAnimation#stop
     */
     prototype.stop = function () {
         this.paused = true;
@@ -322,111 +296,68 @@
     /**
     * Plays the PIXIAnimation
     *
+    * @method platypus.PIXIAnimation#play
     */
     prototype.play = function () {
         this.paused = false;
     };
     
-    prototype._syncUpdate = (function () {
-        var
-            update = function (deltaTime) {
-                var name = "",
-                    floor = 0;
-                
-                this._currentTime += this.animationSpeed * this._animation.speed * deltaTime * (60 / 1000);
-                
-                floor = Math.floor(this._currentTime);
-            
-                if (floor < 0) {
-                    floor = 0;
-                }
-                
-                if (floor < this._animation.frames.length) {
-                    this.setFrame(floor % this._animation.frames.length);
-                } else if (floor >= this._animation.frames.length) {
-                    name = this._animation.id;
-                    this.gotoAndPlay(this._animation.next);
-                    this.emit('complete', name);
-                }
-            };
-        
-        return function () {
-            var updating = this.playing && this._visible;
-            
-            if (updating !== this._updating) {
-                this._updating = updating;
-                
-                if (updating) {
-                    this.update = update;
-                } else {
-                    this.update = doNothing;
-                }
-            }
-        };
-    }());
-    
     /**
     * Stops the PIXIAnimation and goes to a specific frame
     *
-    * @param frameNumber {number} frame index to stop at
+    * @method platypus.PIXIAnimation#gotoAndStop
+    * @param animation {number} frame index to stop at
     */
     prototype.gotoAndStop = function (animation) {
         this.stop();
+        if (this._animation && this._animation.stop) {
+            this._animation.stop();
+        }
     
-        this._currentTime = 0;
         this._animation = this._animations[animation];
         if (!this._animation) {
             this._animation = this._animations.default;
         }
-        this.setFrame(0);
+        this.removeChildren();
+        this.addChild(this._animation);
     };
     
     /**
     * Goes to a specific frame and begins playing the PIXIAnimation
     *
-    * @method gotoAndPlay
+    * @method platypus.PIXIAnimation#gotoAndPlay
     * @param animation {string} The animation to begin playing.
+    * @param [loop = true] {Boolean} Whether this animation should loop.
     * @param [restart = true] {Boolean} Whether to restart the animation if it's currently playing.
     */
-    prototype.gotoAndPlay = function (animation, restart) {
-        if ((this.currentAnimation !== animation) || (restart !== false)) {
-            this._currentTime = 0;
+    prototype.gotoAndPlay = function (animation, loop = true, restart = true) {
+        if ((this.currentAnimation !== animation) || restart) {
+            if (this._animation && this._animation.stop) {
+                this._animation.stop();
+            }
             this._animation = this._animations[animation];
             this.currentAnimation = animation;
             if (!this._animation) {
                 this._animation = this._animations.default;
                 this.currentAnimation = 'default';
             }
-            this.setFrame(0);
+            this.removeChildren();
+            this.addChild(this._animation);
         }
-            
+
+        this._animation.loop = loop;
+        
+        if (this._animation.play) {
+            this._animation.play();
+        }
         this.play();
-    };
-    
-    /**
-    * Sets the texture and anchor for a particular frame.
-    *
-    * @method setFrame
-    * @param frameIndex {Number} Animation frame index to set.
-    * @since 0.11.1
-    */
-    prototype.setFrame = function (frameIndex) {
-        var frameData = this._animation.frames[frameIndex];
-
-        this._texture = frameData.texture;
-        this.anchor = frameData.anchor;
-
-        if (this.tintedTexture) { // Sprite is using a cached tinted canvas, so we need to update this cache too.
-            this.tintedTexture = CanvasTinter.getTintedTexture(this, this.tint);
-        }
     };
     
     /**
     * Returns whether a particular animation is available.
     *
-    * @method has
+    * @method platypus.PIXIAnimation#has
     * @param animation {string} The animation to check.
-    * @since 0.9.0
     */
     prototype.has = function (animation) {
         return !!this._animations[animation];
@@ -435,59 +366,26 @@
     /**
      * Stops the PIXIAnimation and destroys it
      *
-     * @method destroy
+     * @method platypus.PIXIAnimation#destroy
      */
     prototype.destroy = function () {
         var key = '';
         
         this.stop();
-        Sprite.prototype.destroy.call(this);
+        if (this._animation && this._animation.stop) {
+            this._animation.stop();
+        }
+        Container.prototype.destroy.call(this);
         if (this.cacheId) {
             animationCache[this.cacheId].viable -= 1;
             if (animationCache[this.cacheId].viable <= 0) {
-                animationCache[this.cacheId].textures.recycle();
+                arrayCache.recycle(animationCache[this.cacheId].textures);
                 for (key in animationCache[this.cacheId].animations) {
                     if (animationCache[this.cacheId].animations.hasOwnProperty(key)) {
-                        animationCache[this.cacheId].animations[key].frames.recycle();
+                        arrayCache.recycle(animationCache[this.cacheId].animations[key].frames);
                     }
                 }
                 delete animationCache[this.cacheId];
-            }
-        }
-    };
-    
-    /**
-     * This method makes sure that all the base textures are in the gpu to prevent framerate lurches later due to loading base textures as their textures appear.
-     *
-     * @method PIXIAnimation.preloadBaseTextures
-     * @param renderer {PIXI.WebGLRenderer}
-     */
-    PIXIAnimation.preloadBaseTextures = function (renderer) {
-        var btCache = baseTextureCache,
-            key = '';
-        
-        if (renderer.updateTexture) {
-            for (key in btCache) {
-                if (btCache.hasOwnProperty(key)) {
-                    renderer.updateTexture(btCache[key]);
-                }
-            }
-        }
-    };
-    
-    /**
-     * This method cleans out all PIXIAnimation baseTextures at the end of a scene.
-     *
-     * @method PIXIAnimation.unloadBaseTextures
-     */
-    PIXIAnimation.unloadBaseTextures = function (renderer) {
-        var btCache = baseTextureCache,
-            key = '';
-        
-        for (key in btCache) {
-            if (btCache.hasOwnProperty(key) && btCache[key]) {
-                btCache[key].destroy();
-                btCache[key] = null;
             }
         }
     };
@@ -505,10 +403,9 @@
     /**
      * This method formats a provided value into a valid PIXIAnimation Sprite Sheet. This includes accepting the EaselJS spec, strings mapping to Platypus sprite sheets, or arrays of either.
      *
-     * @method formatSpriteSheet
+     * @method platypus.PIXIAnimation.formatSpriteSheet
      * @param spriteSheet {String|Array|Object} The value to cast to a valid Sprite Sheet.
      * @return {Object}
-     * @since 0.8.4
      */
     PIXIAnimation.formatSpriteSheet = (function () {
         var imageParts = /([\w-]+)\.(\w+)$/,
@@ -518,7 +415,7 @@
                 for (key in source) {
                     if (source.hasOwnProperty(key)) {
                         if (destination[key]) {
-                            destination[key].frames.recycle();
+                            arrayCache.recycle(destination[key].frames);
                             destination[key].recycle();
                             platypus.debug.olive('PIXIAnimation "' + id + '": Overwriting duplicate animation for "' + key + '".');
                         }
@@ -556,7 +453,7 @@
                 
                 for (i = 0; i < source.length; i++) {
                     frame = source[i];
-                    destination.push(Array.setUp(
+                    destination.push(arrayCache.setUp(
                         frame[0],
                         frame[1],
                         frame[2],
@@ -588,7 +485,7 @@
                     dFR = destination.framerate || 60,
                     dFrames = destination.frames,
                     i = 0,
-                    images = Array.setUp(),
+                    images = arrayCache.setUp(),
                     firstImageIndex = dImages.length,
                     firstFrameIndex = dFrames.length,
                     sAnims = source.animations,
@@ -615,20 +512,20 @@
                 } else {
                     bases = getBaseTextures(images);
                     addFrameObject(sFrames, dFrames, firstImageIndex, bases);
-                    bases.recycle();
+                    arrayCache.recycle(bases);
                 }
                 
                 // Set up animations object
                 addAnimations(sAnims, dAnims, sFR / dFR, firstFrameIndex, destination.id);
                 
-                images.recycle();
+                arrayCache.recycle(images);
                 
                 return destination;
             },
             formatAnimation = function (key, animation, speedRatio, firstFrameIndex) {
                 var i = 0,
                     first = 0,
-                    frames = Array.setUp(),
+                    frames = arrayCache.setUp(),
                     last = 0;
                 
                 if (typeof animation === 'number') {
@@ -680,13 +577,15 @@
                 
                 for (key in animations) {
                     if (animations.hasOwnProperty(key)) {
-                        animations[key].frames.recycle();
+                        arrayCache.recycle(animations[key].frames);
                     }
                     animations[key].recycle();
                 }
                 
-                this.frames.recycle(2);
-                this.images.recycle();
+                arrayCache.recycle(this.frames, 2);
+                this.frames = null;
+                arrayCache.recycle(this.images);
+                this.images = null;
                 this.recycle();
             },
             merge = function (spriteSheets, destination) {
@@ -718,9 +617,9 @@
                 response = Data.setUp(
                     "animations", Data.setUp(),
                     "framerate", 60,
-                    "frames", Array.setUp(),
+                    "frames", arrayCache.setUp(),
                     "id", '',
-                    "images", Array.setUp(),
+                    "images", arrayCache.setUp(),
                     "recycleSpriteSheet", recycle
                 );
                     
@@ -734,4 +633,6 @@
             return response;
         };
     }());
+
+    return PIXIAnimation;
 }());

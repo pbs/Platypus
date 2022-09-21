@@ -1,16 +1,4 @@
 /**
-# COMPONENT **LogicPacingPlatform**
-This component changes the (x, y) position of an object according to its speed and heading and alternates back and forth. This is useful for in-place moving platforms.
-
-## Dependencies:
-- [[HandlerLogic]] (on entity's parent) - This component listens for a logic tick message to maintain and update its location.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - On a `tick` logic message, the component updates its location according to its current state.
-  - @param message.delta - To determine how far to move the entity, the component checks the length of the tick.
-
 ## JSON Definition:
     {
       "type": "LogicDirectionalMovement",
@@ -28,14 +16,22 @@ This component changes the (x, y) position of an object according to its speed a
       // Optional. Position in the cycle that the movement should begin. Defaults in the middle at 0; PI/2 and -PI/2 will put you at the extremes.
     }
 */
-/*global platypus */
-(function () {
-    'use strict';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicPacingPlatform.prototype */{
         
         id: 'LogicPacingPlatform',
         
+        /**
+         * This component changes the (x, y) position of an object according to its speed and heading and alternates back and forth. This is useful for in-place moving platforms.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#handle-logic
+         */
         initialize: function (definition) {
             this.ang      = this.owner.angle      || definition.angle     || 0; //PI/2 makes it go down first
             this.dist     = this.owner.distance || definition.distance || 128; //Distance in pixels
@@ -49,7 +45,7 @@ This component changes the (x, y) position of an object according to its speed a
             this.originY  = this.owner.y;
         },
 
-        events: {// These are messages that this component listens for
+        events: {
             "handle-logic": function (update) {
                 var period = this.period,
                     delta = update.delta;

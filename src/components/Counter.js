@@ -1,17 +1,8 @@
-/**
- * A simple component that keeps count of something and sends messages each time the count changes. Can also have a total. When it does it will display 'count / total'.
- *
- * @namespace platypus.components
- * @class Counter
- * @uses platypus.Component
- */
-/*global include, platypus */
-(function () {
-    'use strict';
-    
-    var Data = include('platypus.Data');
-    
-    return platypus.createComponentClass({
+import Data from '../Data.js';
+import createComponentClass from '../factory.js';
+
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.Counter.prototype */{
 
         id: 'Counter',
 
@@ -26,6 +17,18 @@
             total: 0
         },
 
+        /**
+         * A simple component that keeps count of something and sends messages each time the count changes. Can also have a total. When it does it will display 'count / total'.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @listens platypus.Entity#change-total
+         * @listens platypus.Entity#change-count
+         * @listens platypus.Entity#handle-logic
+         * @listens platypus.Entity#increment-count
+         * @fires platypus.Entity#update-content
+         */
         initialize: function () {
             this.count = 0;
             this.lastTotal = 0;
@@ -36,11 +39,6 @@
         },
 
         events: {
-            /**
-             * Each step, this component detects whether the count has changed and triggers an 'update-content' event if so.
-             *
-             * @method 'handle-logic'
-             */
             "handle-logic": function () {
                 var update  = false,
                     msg = this.message;
@@ -65,7 +63,7 @@
                     /**
                      * A call used to notify other components that the count or total has changed.
                      *
-                     * @event 'update-content'
+                     * @event platypus.Entity#update-content
                      * @param update.text {string} String describing the current count.
                      */
                     this.owner.triggerEvent('update-content', msg);
@@ -75,7 +73,7 @@
             /**
              * Changes the total to the given value.
              *
-             * @method 'change-total'
+             * @event platypus.Entity#change-total
              * @param data.total {number} The new total value.
              */
             "change-total": function (total) {
@@ -85,7 +83,7 @@
             /**
              * Changes the count to the given value.
              *
-             * @method 'change-count'
+             * @event platypus.Entity#change-count
              * @param data.count {number} The new count value.
              */
             "change-count": function (count) {
@@ -95,7 +93,7 @@
             /**
              * Increments the count by 1.
              *
-             * @method 'increment-count'
+             * @event platypus.Entity#increment-count
              */
             "increment-count": function () {
                 this.count += 1;

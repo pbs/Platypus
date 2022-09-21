@@ -1,16 +1,4 @@
 /**
-# COMPONENT **LogicRegionSpawner**
-This component spawns new entities within a given area at set intervals.
-
-## Dependencies
-- [[HandlerLogic]] (on entity's parent) - This component listens for a logic tick message to determine whether to spawn another entity.
-
-## Messages
-
-### Listens for:
-- **handle-logic** - On a `tick` logic message, the component determines whether to spawn another entity.
-  - @param message.delta - To determine whether to spawn, the component keeps a running count of tick lengths.
-
 ## JSON Definition
     {
       "type": "LogicRegionSpawner",
@@ -31,16 +19,24 @@ This component spawns new entities within a given area at set intervals.
       }
     }
 */
-/* global include, platypus */
-(function () {
-    'use strict';
-    
-    var Entity = include('platypus.Entity');
+import Entity from '../Entity.js';
+import {arrayCache} from '../utils/array.js';
+import createComponentClass from '../factory.js';
 
-    return platypus.createComponentClass({
+export default (function () {
+    return createComponentClass(/** @lends platypus.components.LogicRegionSpawner.prototype */{
         
         id: 'LogicRegionSpawner',
         
+        /**
+         * This component spawns new entities within a given area at set intervals.
+         *
+         * @memberof platypus.components
+         * @uses platypus.Component
+         * @constructs
+         * @param {*} definition 
+         * @listens platypus.Entity#handle-logic
+         */
         initialize: function (definition) {
             var x       = 0,
                 y       = 0,
@@ -65,8 +61,8 @@ This component spawns new entities within a given area at set intervals.
             this.regionWidth = 0;
             this.regionHeight = 0;
             if (definition.regions) {
-                this.regions = Array.setUp();
-                this.usedRegions = Array.setUp();
+                this.regions = arrayCache.setUp();
+                this.usedRegions = arrayCache.setUp();
                 this.regionWidth  = width  = definition.regions.width  || this.owner.width;
                 this.regionHeight = height = definition.regions.height || this.owner.height;
                 columns = Math.round(this.owner.width  / width);
@@ -123,8 +119,8 @@ This component spawns new entities within a given area at set intervals.
         methods: {
             destroy: function () {
                 if (this.regions) {
-                    this.regions.recycle();
-                    this.usedRegions.recycle();
+                    arrayCache.recycle(this.regions);
+                    arrayCache.recycle(this.usedRegions);
                 }
             }
         },
@@ -138,7 +134,7 @@ This component spawns new entities within a given area at set intervals.
                 });
             }
             
-            return Array.setUp();
+            return arrayCache.setUp();
         }
     });
 }());
