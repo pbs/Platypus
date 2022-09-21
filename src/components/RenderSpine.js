@@ -489,7 +489,7 @@ export default (function () {
     
                     spine.x = this.offsetX;
                     spine.y = this.offsetY;
-                    spine.z = this.offsetZ;
+                    spine.zIndex = this.offsetZ;
                     spine.scale.x = this.localScaleX;
                     spine.scale.y = this.localScaleY;
     

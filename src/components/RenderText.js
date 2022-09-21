@@ -97,7 +97,7 @@ export default createComponentClass(/** @lends platypus.components.RenderText.pr
         this.sprite.anchor.y = typeof vAlign === 'number' ? vAlign : 1;
         this.sprite.x = this.offsetX;
         this.sprite.y = this.offsetY;
-        this.sprite.z = this.offsetZ;
+        this.sprite.zIndex = this.offsetZ;
 
         if (!this.owner.container) {
             this.owner.addComponent(new RenderContainer(this.owner, definition, this.addToContainer.bind(this)));
