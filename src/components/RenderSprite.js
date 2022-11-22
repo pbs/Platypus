@@ -393,7 +393,7 @@ export default createComponentClass(/** @lends platypus.components.RenderSprite.
             this.sprite.onComplete = animationEnded.bind(this);
             this.sprite.x = this.offsetX;
             this.sprite.y = this.offsetY;
-            this.sprite.z = this.offsetZ;
+            this.sprite.zIndex = this.offsetZ;
             this.sprite.scale.x = this.localScaleX;
             this.sprite.scale.y = this.localScaleY;
 
