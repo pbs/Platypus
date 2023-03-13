@@ -408,7 +408,7 @@ export default (function () {
      * @return {Object}
      */
     PIXIAnimation.formatSpriteSheet = (function () {
-        var imageParts = /([\w-]+)\.(\w+)$/,
+        var imageParts = /([\w-\.]+)\.(\w+)$/,
             addAnimations = function (source, destination, speedRatio, firstFrameIndex, id) {
                 var key = '';
                 
