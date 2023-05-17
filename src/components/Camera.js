@@ -464,7 +464,9 @@ export default (function () {
                         tween.easing(ease);
                     }
                     tween.onUpdate(() => {
-                        this.resize();
+                        if (!this.owner.destroyed) {
+                            this.resize();
+                        }
                     }).start();
                 } else {
                     if (width && height) {
@@ -502,7 +504,7 @@ export default (function () {
              */
             "relocate": (function () {
                 var move = function (v) {
-                        if (this.move(v.x, v.y)) {
+                        if (!this.owner.destroyed && this.move(v.x, v.y)) {
                             this.viewportUpdate = true;
                         }
                     },
