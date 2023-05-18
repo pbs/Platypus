@@ -28,7 +28,7 @@ const
             
         return Data.setUp(
             'id', asset.id || (match ? match[1] : path),
-            'src', (platypus.game.options[folders[match[2].toLowerCase()]] || '') + path
+            'src', (match ? platypus.game.options[folders[match[2].toLowerCase()]] || '' : '') + path
         );
     };
 
